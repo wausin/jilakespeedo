@@ -57,6 +57,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     ref.read(locationServiceProvider).start();
+    // The speedo vehicle switcher's manage affordances open the Settings
+    // screen (vehicles section).
+    SpeedoScreen.onManageVehicles = () => setState(() => _index = 3);
   }
 
   @override
