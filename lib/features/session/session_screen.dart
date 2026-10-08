@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,6 +31,16 @@ String elapsedLabel(int ms) {
     return '$hours:${minutes.toString().padLeft(2, '0')}:$ss';
   }
   return '$minutes:$ss';
+}
+
+/// Wall-clock elapsed label for a duration-target session: `nowMs` minus
+/// the anchored [startFixMs], clamped to 0..[budgetMs]. The live display is
+/// driven by this (ticking every second) rather than by fix progress, so it
+/// keeps advancing across weak-signal gaps; the engine stays fix-driven for
+/// the summary.
+String elapsedLabelAt(int startFixMs, int nowMs, int budgetMs) {
+  final elapsedMs = (nowMs - startFixMs).clamp(0, budgetMs);
+  return elapsedLabel(elapsedMs);
 }
 
 String _trimZero(double value) {
@@ -174,17 +186,54 @@ class _ConfigSectionState extends ConsumerState<_ConfigSection> {
 }
 
 /// Live session: circular progress toward the target plus current stats.
-class _LiveSection extends ConsumerWidget {
+class _LiveSection extends ConsumerStatefulWidget {
   const _LiveSection({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_LiveSection> createState() => _LiveSectionState();
+}
+
+class _LiveSectionState extends ConsumerState<_LiveSection> {
+  /// Rebuilds the duration display once per second so its label tracks the
+  /// wall clock (the fix-driven engine only decides the summary). Distance
+  /// targets are progress-based, not time-based, and need no ticker.
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncTicker();
+  }
+
+  void _syncTicker() {
+    final live = ref.read(sessionControllerProvider).live;
+    final wantsTicker =
+        live != null && !live.finished && live.target is DurationTarget;
+    if (wantsTicker && _ticker == null) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!wantsTicker) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final unit = ref.watch(settingsControllerProvider.select((s) => s.unit));
     final session = ref.watch(sessionControllerProvider);
     // Render straight from the live (mutable) SessionState — never cache.
     final live = session.live!;
     final target = live.target;
+    _syncTicker();
 
     final currentSpeed =
         live.speedSamples.isEmpty ? 0.0 : live.speedSamples.last;
@@ -194,10 +243,14 @@ class _LiveSection extends ConsumerWidget {
       DistanceTarget(:final meters) =>
         '${distanceLabel(live.cumulativeDistanceM, unit)} / ${distanceLabel(meters, unit)}',
       DurationTarget(:final minutes) => () {
-          final budgetMs = minutes * 60000;
-          final elapsedMs =
-              (session.progress * budgetMs).round().clamp(0, budgetMs);
-          return '${elapsedLabel(elapsedMs)} / $minutes min';
+          // Wall-clock elapsed anchored at the first fix: the label keeps
+          // ticking across weak-signal gaps, clamped to the budget.
+          final label = elapsedLabelAt(
+            live.startedAtMs,
+            DateTime.now().millisecondsSinceEpoch,
+            minutes * 60000,
+          );
+          return '$label / $minutes min';
         }(),
     };
 

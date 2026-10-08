@@ -70,6 +70,22 @@ PositionFix _fix({int timestampMs = 0, double speedMs = 10.0}) => PositionFix(
     );
 
 void main() {
+  group('elapsedLabelAt (wall-clock live duration display)', () {
+    const startMs = 1000000;
+    const budgetMs = 5 * 60000;
+
+    test('advances with the wall clock across a fix gap', () {
+      expect(elapsedLabelAt(startMs, startMs, budgetMs), '0:00');
+      expect(elapsedLabelAt(startMs, startMs + 65000, budgetMs), '1:05');
+      expect(elapsedLabelAt(startMs, startMs + 125000, budgetMs), '2:05');
+    });
+
+    test('is clamped to the budget and never negative', () {
+      expect(elapsedLabelAt(startMs, startMs + 999000, budgetMs), '5:00');
+      expect(elapsedLabelAt(startMs, startMs - 5000, budgetMs), '0:00');
+    });
+  });
+
   late FakeLocationService locationService;
   late FakeWakeLockService wakeLock;
   late IdbStorageService storage;
@@ -251,6 +267,63 @@ void main() {
       expect(find.text('Avg speed'), findsOneWidget);
       expect(find.text('Elapsed'), findsOneWidget);
       expect(find.text('0:04'), findsOneWidget);
+    });
+  });
+
+  /// Builds a good-accuracy fix on the equator heading east, timestamped
+  /// [DateTime.now()]-relative so the wall-clock-driven label anchors at 0.
+  PositionFix fixNow({double speedMs = 10.0}) => _fix(
+        timestampMs: DateTime.now().millisecondsSinceEpoch,
+        speedMs: speedMs,
+      );
+
+  testWidgets('duration target: the live elapsed label is driven by the '
+      'wall clock anchored at the first fix, and a fix past the budget '
+      'finishes the session', (tester) async {
+    await tester.runAsync(() async {
+      final container = await pumpScreen(tester);
+      final controller = container.read(sessionControllerProvider.notifier);
+
+      // 5-minute duration target; anchor the session clock with one fix.
+      await controller.start(const DurationTarget(5));
+      await emit(fixNow());
+      await tester.pump();
+
+      expect(find.byKey(sessionLiveKey), findsOneWidget);
+      // Wall-clock elapsed since the anchor: ~0 s. (testWidgets freezes
+      // the zone clock, so this cannot advance here — the tick math is
+      // covered by the elapsedLabelAt unit tests; what matters is the
+      // label renders from the wall clock, not from fix progress, which
+      // is also 0 at the anchor.) The 1s display ticker is drained below
+      // so no timer is left pending when the tree is torn down.
+      expect(find.text('0:00 / 5 min'), findsOneWidget);
+
+      // One good fix past the budget finishes the session (fix-driven
+      // engine), and the completed summary shows the fix-measured elapsed.
+      locationService.fixes.add(
+        _fix(timestampMs: DateTime.now().millisecondsSinceEpoch + 6 * 60000),
+      );
+      await Future<void>.delayed(Duration.zero);
+      for (var i = 0; i < 30; i++) {
+        await Future<void>.delayed(Duration.zero);
+        if (container.read(sessionControllerProvider).lastSummary != null) {
+          break;
+        }
+      }
+      // The display ticker is still periodic after completion; drain it so
+      // the test ends with no pending timers.
+      await tester.pump(const Duration(minutes: 10));
+      await tester.pump();
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.live!.finished, isTrue);
+      expect(state.lastSummary, isNotNull);
+      // Budget (5 min) + ~1 min gap; real wall-clock may add a few ms
+      // between the two DateTime.now() reads.
+      expect(state.lastSummary!.elapsedMs, greaterThanOrEqualTo(6 * 60000));
+      expect(state.lastSummary!.elapsedMs, lessThan(6 * 60000 + 5000));
+      expect(find.byKey(sessionSummaryKey), findsOneWidget);
+      expect(find.byKey(sessionLiveKey), findsNothing);
     });
   });
 
