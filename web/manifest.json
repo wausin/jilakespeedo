@@ -1,11 +1,11 @@
 {
-    "name": "jilake_speedo",
-    "short_name": "jilake_speedo",
+    "name": "Jilake Speedo",
+    "short_name": "Jilake Speedo",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0E0E10",
+    "theme_color": "#0E0E10",
+    "description": "GPS speedometer PWA",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
