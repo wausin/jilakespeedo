@@ -142,6 +142,9 @@ class VehiclesState {
 /// Loads vehicles at init, creates the default vehicle on first run, and
 /// keeps [StorageService] in sync on every mutation.
 class VehiclesController extends StateNotifier<VehiclesState> {
+  /// At most this many vehicles may be pinned (shown in the switcher).
+  static const int maxPinned = 3;
+
   final StorageService _storage;
 
   VehiclesController(this._storage) : super(const VehiclesState()) {
@@ -194,20 +197,36 @@ class VehiclesController extends StateNotifier<VehiclesState> {
   }
 
   /// Removes the vehicle with [id].
+  ///
+  /// When the deleted vehicle was active, the first remaining vehicle (if
+  /// any) becomes active.
   Future<void> delete(String id) async {
     await _storage.deleteVehicle(id);
     final vehicles = state.vehicles.where((v) => v.id != id).toList();
+    String? activeId = state.activeVehicleId;
+    if (activeId == id) {
+      activeId = vehicles.isEmpty ? null : vehicles.first.id;
+    }
     state = state.copyWith(
       vehicles: vehicles,
-      activeVehicleId: () =>
-          state.activeVehicleId == id ? null : state.activeVehicleId,
+      activeVehicleId: () => activeId,
     );
   }
 
   /// Sets or clears the pinned flag on the vehicle with [id].
+  ///
+  /// At most [maxPinned] vehicles may be pinned; pinning another one
+  /// unpins the oldest pinned (first in list order).
   Future<void> pin(String id, {required bool pinned}) async {
     final vehicle = state.vehicles.where((v) => v.id == id).firstOrNull;
     if (vehicle == null) return;
+    if (pinned && !vehicle.isPinned) {
+      final pinnedVehicles =
+          state.vehicles.where((v) => v.isPinned).toList();
+      if (pinnedVehicles.length >= maxPinned) {
+        await upsert(pinnedVehicles.first.copyWith(isPinned: false));
+      }
+    }
     await upsert(vehicle.copyWith(isPinned: pinned));
   }
 }

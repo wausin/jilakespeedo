@@ -58,8 +58,20 @@ class _AppShellState extends ConsumerState<AppShell> {
     super.initState();
     ref.read(locationServiceProvider).start();
     // The speedo vehicle switcher's manage affordances open the Settings
-    // screen (vehicles section).
-    SpeedoScreen.onManageVehicles = () => setState(() => _index = 3);
+    // screen with the vehicles section scrolled into view.
+    SpeedoScreen.onManageVehicles = () {
+      setState(() => _index = 3);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final context = SettingsScreen.vehiclesSectionKey.currentContext;
+        if (context != null) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 300),
+            alignment: 0.1,
+          );
+        }
+      });
+    };
   }
 
   @override
