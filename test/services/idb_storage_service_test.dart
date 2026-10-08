@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jilake_speedo/core/models/models.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
-import 'package:sembast/sembast.dart';
 import 'package:sembast/sembast_memory.dart';
 
 TrackPoint _point(int timestampMs) => TrackPoint(

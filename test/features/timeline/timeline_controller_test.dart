@@ -169,6 +169,63 @@ void main() {
     });
   });
 
+  testWidgets('a midnight-crossing ride is split into one entry per day',
+      (tester) async {
+    await tester.runAsync(() async {
+      final container = await pumpHost(tester);
+      final controller = container.read(timelineControllerProvider.notifier);
+
+      await controller.toggleRecording();
+      expect(container.read(timelineControllerProvider).recording, isTrue);
+
+      // Moving fixes from 23:55 local to 00:10 local the next day,
+      // 1 fix/min at 10 m/s: 600 m between fixes, so no stop ever opens.
+      final start = DateTime(2026, 3, 10, 23, 55);
+      for (var i = 0; i <= 15; i++) {
+        final t = start.add(Duration(minutes: i));
+        await emit(
+          fix(timestampMs: t.millisecondsSinceEpoch, eastM: i * 600.0),
+        );
+      }
+
+      await controller.toggleRecording();
+      expect(container.read(timelineControllerProvider).recording, isFalse);
+
+      // One entry per day: day A holds 23:55..23:59, day B holds 00:00..00:10.
+      final dayA = DateTime(2026, 3, 10);
+      final dayB = DateTime(2026, 3, 11);
+
+      final days = await storage.timelineDays();
+      expect(days, [dayB, dayA]); // newest first
+
+      final entriesA = await storage.timelineEntriesForDay(dayA);
+      expect(entriesA, hasLength(1));
+      expect(entriesA.single.day, dayA);
+      expect(entriesA.single.segments, hasLength(1));
+      final rideA = entriesA.single.segments.single as RideSegment;
+      expect(rideA.points.map((p) => p.timestampMs), [
+        for (var i = 0; i <= 4; i++)
+          start.add(Duration(minutes: i)).millisecondsSinceEpoch,
+      ]);
+
+      final entriesB = await storage.timelineEntriesForDay(dayB);
+      expect(entriesB, hasLength(1));
+      expect(entriesB.single.day, dayB);
+      expect(entriesB.single.segments, hasLength(1));
+      final rideB = entriesB.single.segments.single as RideSegment;
+      expect(rideB.points.map((p) => p.timestampMs), [
+        for (var i = 5; i <= 15; i++)
+          start.add(Duration(minutes: i)).millisecondsSinceEpoch,
+      ]);
+
+      // The controller selects the first recorded day (the start day).
+      expect(container.read(timelineControllerProvider).activeDay, dayA);
+
+      expect(wakeLock.holdCount, 1);
+      expect(wakeLock.releaseCount, 1);
+    });
+  });
+
   testWidgets('replay of a stored day populates dayEntries', (tester) async {
     await tester.runAsync(() async {
       // Pre-seed storage with an entry for "today at local midnight".

@@ -101,12 +101,17 @@ class TimelineController extends Notifier<TimelineState> {
 
     DateTime? recordedDay;
     if (segments.isNotEmpty) {
-      recordedDay = _dayOfMs(_firstTimestampMs(segments));
+      // Google-Timeline-style: a midnight-crossing recording is filed one
+      // entry per day (each day is its own storage record).
+      final byDay = _splitByDay(segments);
       final storage = ref.read(storageServiceProvider);
       try {
-        await storage.upsertTimelineEntry(
-          TimelineEntry(day: recordedDay, segments: segments),
-        );
+        for (final entry in byDay.entries) {
+          await storage.upsertTimelineEntry(
+            TimelineEntry(day: entry.key, segments: entry.value),
+          );
+        }
+        recordedDay = byDay.keys.first;
       } catch (_) {
         // Best-effort persist: recording is over regardless; the wake lock
         // is still released below.
@@ -150,13 +155,46 @@ class TimelineController extends Notifier<TimelineState> {
     return segments;
   }
 
-  /// Local-midnight day of the first timestamp found in [segments].
-  static int _firstTimestampMs(List<TimelineSegment> segments) {
-    final first = segments.first;
-    return switch (first) {
-      RideSegment(:final points) => points.first.timestampMs,
-      StopSegment(:final startMs) => startMs,
-    };
+  /// Splits [segments] at local-midnight boundaries into an ordered map of
+  /// day → segments (insertion order: chronological by first occurrence).
+  /// A ride's points are divided by each point's local day; a stop goes to
+  /// the day its start falls in (stops straddling midnight are attributed
+  /// to the start day — a deliberate simplification).
+  static Map<DateTime, List<TimelineSegment>> _splitByDay(
+    List<TimelineSegment> segments,
+  ) {
+    final byDay = <DateTime, List<TimelineSegment>>{};
+    for (final segment in segments) {
+      switch (segment) {
+        case RideSegment(:final points):
+          DateTime? currentDay;
+          var currentPoints = <TrackPoint>[];
+          void flush() {
+            final day = currentDay;
+            if (day != null && currentPoints.isNotEmpty) {
+              byDay.putIfAbsent(day, () => []).add(
+                    RideSegment(points: currentPoints),
+                  );
+            }
+          }
+
+          for (final point in points) {
+            final day = _dayOfMs(point.timestampMs);
+            if (day != currentDay) {
+              flush();
+              currentDay = day;
+              currentPoints = [];
+            }
+            currentPoints.add(point);
+          }
+          flush();
+        case StopSegment():
+          byDay
+              .putIfAbsent(_dayOfMs(segment.startMs), () => [])
+              .add(segment);
+      }
+    }
+    return byDay;
   }
 
   static DateTime _dayOfMs(int ms) {
