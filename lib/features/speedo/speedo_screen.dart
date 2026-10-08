@@ -49,6 +49,7 @@ class SpeedoScreen extends ConsumerWidget {
     final gaugeRange = rangeInUnit < 1 ? 1.0 : rangeInUnit;
     final speedInUnit = convertSpeed(ms: speedo.display, unit: unit);
     final peakInUnit = convertSpeed(ms: speedo.peak, unit: unit);
+    final readoutGlow = Theme.of(context).colorScheme.primary;
 
     final gauge = AspectRatio(
       aspectRatio: 1,
@@ -61,7 +62,7 @@ class SpeedoScreen extends ConsumerWidget {
         ),
         child: Center(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
               const Spacer(flex: 3),
               Text(
@@ -73,10 +74,7 @@ class SpeedoScreen extends ConsumerWidget {
                   height: 1,
                   shadows: [
                     Shadow(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: 0.8),
+                      color: readoutGlow.withValues(alpha: 0.8),
                       blurRadius: 18,
                     ),
                   ],
@@ -119,7 +117,7 @@ class SpeedoScreen extends ConsumerWidget {
               Expanded(
                 flex: 3,
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(16),
                   child: gauge,
                 ),
               ),
