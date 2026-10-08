@@ -22,8 +22,17 @@ class IdbStorageService implements StorageService {
   final _sessionsStore = stringMapStoreFactory.store('sessions');
   final _trackPointsStore = intMapStoreFactory.store('track_points');
   final _timelineEntriesStore = stringMapStoreFactory.store('timeline_entries');
+  final _settingsStore = stringMapStoreFactory.store('settings');
 
   Database? _db;
+
+  /// The `settings` string store (keyed string map), exposed so settings
+  /// controllers can persist small values without a full model.
+  StoreRef<String, String> get settingsStore =>
+      _settingsStore.cast<String, String>();
+
+  /// The opened database; throws if [init] has not completed.
+  Database get database => _database;
 
   Database get _database {
     final db = _db;
