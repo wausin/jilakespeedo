@@ -47,6 +47,13 @@ class SessionEngine {
 
   SessionEngine({required this.accuracyThresholdM});
 
+  /// The current [SessionState], or null when no session was started.
+  ///
+  /// Same live instance that [onFix] returns: reading this never advances
+  /// the session (a distance target without fixes stays at zero, a duration
+  /// target without fixes stays unfinished — no wall-clock progress).
+  SessionState? get state => _state;
+
   /// Begins a new session, discarding any previous state.
   void start({
     required String vehicleId,
