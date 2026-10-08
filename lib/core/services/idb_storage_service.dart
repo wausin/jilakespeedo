@@ -51,10 +51,23 @@ class IdbStorageService implements StorageService {
     _db ??= await _factory.openDatabase(_dbName, version: _dbVersion);
   }
 
+  /// Decodes one stored row, or null when the row is corrupt (bad shape,
+  /// unknown enum name). A single corrupt row must never brick a list read.
+  static T? _tryDecode<T>(T Function() decode) {
+    try {
+      return decode();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<List<Vehicle>> vehicles() async {
     final records = await _vehiclesStore.find(_database);
-    return records.map((r) => Vehicle.fromJson(r.value)).toList();
+    return [
+      for (final r in records)
+        ?_tryDecode(() => Vehicle.fromJson(r.value)),
+    ];
   }
 
   @override
@@ -82,7 +95,10 @@ class IdbStorageService implements StorageService {
         limit: limit,
       ),
     );
-    return records.map((r) => Session.fromJson(r.value)).toList();
+    return [
+      for (final r in records)
+        ?_tryDecode(() => Session.fromJson(r.value)),
+    ];
   }
 
   @override
@@ -110,7 +126,10 @@ class IdbStorageService implements StorageService {
         sortOrders: [SortOrder(Field.key)],
       ),
     );
-    return records.map((r) => TrackPoint.fromJson(r.value)).toList();
+    return [
+      for (final r in records)
+        ?_tryDecode(() => TrackPoint.fromJson(r.value)),
+    ];
   }
 
   /// Timeline entries are keyed by day at local midnight; non-midnight
@@ -131,7 +150,10 @@ class IdbStorageService implements StorageService {
       _database,
       finder: Finder(filter: Filter.equals('day', _dayKey(day))),
     );
-    return records.map((r) => TimelineEntry.fromJson(r.value)).toList();
+    return [
+      for (final r in records)
+        ?_tryDecode(() => TimelineEntry.fromJson(r.value)),
+    ];
   }
 
   @override

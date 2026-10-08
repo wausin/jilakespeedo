@@ -31,8 +31,11 @@ class Vehicle {
   factory Vehicle.fromJson(Map<String, dynamic> json) => Vehicle(
         id: json['id'] as String,
         name: json['name'] as String,
-        type: VehicleType.values
-            .firstWhere((t) => t.name == json['type'] as String),
+        type: VehicleType.values.firstWhere(
+          (t) => t.name == json['type'] as String,
+          orElse: () =>
+              throw FormatException('unknown vehicle type: ${json['type']}'),
+        ),
         gaugeMaxKmh: (json['gaugeMaxKmh'] as num?)?.toDouble(),
         isPinned: json['isPinned'] as bool?,
       );

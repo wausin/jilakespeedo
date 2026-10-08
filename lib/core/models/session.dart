@@ -153,8 +153,11 @@ class Session {
         target: SessionTarget.fromJson(json['target'] as Map<String, dynamic>),
         startedAtMs: (json['startedAtMs'] as num).toInt(),
         endedAtMs: (json['endedAtMs'] as num?)?.toInt(),
-        status: SessionStatus.values
-            .firstWhere((s) => s.name == json['status'] as String),
+        status: SessionStatus.values.firstWhere(
+          (s) => s.name == json['status'] as String,
+          orElse: () =>
+              throw FormatException('unknown session status: ${json['status']}'),
+        ),
         summary: json['summary'] == null
             ? null
             : SessionSummary.fromJson(json['summary'] as Map<String, dynamic>),

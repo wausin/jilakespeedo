@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jilake_speedo/core/models/models.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
+import 'package:sembast/sembast.dart';
 import 'package:sembast/sembast_memory.dart';
 
 TrackPoint _point(int timestampMs) => TrackPoint(
@@ -95,6 +96,28 @@ void main() {
       expect(vehicles, hasLength(1));
       expect(vehicles.single, equals(v2));
     });
+
+    test('a corrupt row is skipped and does not brick the list', () async {
+      final good = Vehicle(id: 'v1', name: 'A', type: VehicleType.bike);
+      await storage.upsertVehicle(good);
+
+      final store = stringMapStoreFactory.store('vehicles');
+      // Unknown enum name: decode throws FormatException.
+      await store.record('bad-type').put(storage.database, {
+        'id': 'bad-type',
+        'name': 'Broken',
+        'type': 'hovercraft',
+        'gaugeMaxKmh': 100.0,
+        'isPinned': false,
+      });
+      // Invalid shape: required fields missing / wrongly typed.
+      await store.record('bad-shape').put(storage.database, {
+        'not-a-vehicle': true,
+      });
+
+      final vehicles = await storage.vehicles();
+      expect(vehicles, [good]);
+    });
   });
 
   group('sessions', () {
@@ -144,6 +167,31 @@ void main() {
 
       final sessions = await storage.sessionsForVehicle('v1');
       expect(sessions.single, equals(session));
+    });
+
+    test('a corrupt row is skipped and does not brick the list', () async {
+      final good = _session(id: 's1', vehicleId: 'vA', startedAtMs: 1000);
+      await storage.saveSession(good);
+
+      final store = stringMapStoreFactory.store('sessions');
+      // Unknown status enum name: decode throws FormatException.
+      await store.record('bad-status').put(storage.database, {
+        'id': 'bad-status',
+        'vehicleId': 'vA',
+        'target': SessionTarget.distance(5000).toJson(),
+        'startedAtMs': 2000,
+        'endedAtMs': null,
+        'status': 'paused',
+        'summary': null,
+      });
+      // Invalid shape: required fields missing / wrongly typed.
+      await store.record('bad-shape').put(storage.database, {
+        'vehicleId': 'vA',
+        'startedAtMs': 'not-a-number',
+      });
+
+      final sessions = await storage.sessionsForVehicle('vA');
+      expect(sessions, [good]);
     });
   });
 

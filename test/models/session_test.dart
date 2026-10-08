@@ -64,6 +64,21 @@ void main() {
       expect(restored, session);
     });
 
+    test('fromJson with unknown status string throws FormatException', () {
+      expect(
+        () => Session.fromJson({
+          'id': 's1',
+          'vehicleId': 'v1',
+          'target': SessionTarget.distance(1000).toJson(),
+          'startedAtMs': 0,
+          'endedAtMs': null,
+          'status': 'paused',
+          'summary': null,
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
     test('fromJson/toJson round-trips a running session without summary',
         () {
       final session = Session(

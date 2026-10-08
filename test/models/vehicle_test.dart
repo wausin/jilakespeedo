@@ -24,6 +24,17 @@ void main() {
       expect(restored, vehicle);
     });
 
+    test('fromJson with unknown type string throws FormatException', () {
+      expect(
+        () => Vehicle.fromJson({
+          'id': 'v1',
+          'name': 'My Ride',
+          'type': 'hovercraft',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
     test('copyWith changes only the given fields', () {
       final vehicle = Vehicle(
         id: 'v1',
