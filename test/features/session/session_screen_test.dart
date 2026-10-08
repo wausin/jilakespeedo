@@ -228,4 +228,54 @@ void main() {
       expect(find.text('22.4 mph'), findsWidgets);
     });
   });
+
+  testWidgets('stopped distance session renders the distance-mode summary '
+      'layout', (tester) async {
+    await tester.runAsync(() async {
+      final container = await pumpScreen(tester);
+      final controller = container.read(sessionControllerProvider.notifier);
+
+      // Start a distance target and stop mid-session.
+      await controller.start(const DistanceTarget(100));
+      await emit(_fix(timestampMs: 0));
+      for (var i = 1; i <= 4; i++) {
+        await emit(_fix(timestampMs: i * 1000)..lng = lngAt(i * 10.0));
+      }
+      await controller.stop();
+      await waitForSummary(container);
+      await tester.pump();
+
+      // A stopped distance-target session still uses the distance-mode
+      // layout: top/avg speed + elapsed first, distance last.
+      expect(find.text('Top speed'), findsOneWidget);
+      expect(find.text('Avg speed'), findsOneWidget);
+      expect(find.text('Elapsed'), findsOneWidget);
+      expect(find.text('0:04'), findsOneWidget);
+    });
+  });
+
+  testWidgets('stopped duration session renders the duration-mode summary '
+      'layout', (tester) async {
+    await tester.runAsync(() async {
+      final container = await pumpScreen(tester);
+      final controller = container.read(sessionControllerProvider.notifier);
+
+      // Start a duration target and stop mid-session after ~30 s.
+      await controller.start(const DurationTarget(1));
+      await emit(_fix(timestampMs: 0));
+      for (var i = 1; i <= 30; i++) {
+        await emit(_fix(timestampMs: i * 1000)..lng = lngAt(i * 10.0));
+      }
+      await controller.stop();
+      await waitForSummary(container);
+      await tester.pump();
+
+      // A stopped duration-target session uses the duration-mode layout:
+      // distance first, then speeds, then elapsed. 300 m = 0.3 km.
+      expect(find.text('Distance'), findsWidgets);
+      expect(find.text('0.3 km'), findsWidgets);
+      expect(find.text('36 km/h'), findsWidgets);
+      expect(find.text('0:30'), findsOneWidget);
+    });
+  });
 }

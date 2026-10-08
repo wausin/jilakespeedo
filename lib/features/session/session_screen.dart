@@ -274,7 +274,7 @@ class _SummaryCard extends ConsumerWidget {
     final unit = ref.watch(settingsControllerProvider.select((s) => s.unit));
     final session = ref.watch(sessionControllerProvider);
     final summary = session.lastSummary!;
-    final target = session.live?.target;
+    final target = session.lastTarget;
     final speedUnit = unitLabel(unit);
     // Whole speeds show as integers (`72 km/h`), fractions keep one decimal.
     final top = _trimZero(convertSpeed(ms: summary.topSpeedMs, unit: unit));

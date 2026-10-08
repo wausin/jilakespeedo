@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jilake_speedo/core/controllers/providers.dart';
-import 'package:jilake_speedo/core/models/session.dart';
+import 'package:jilake_speedo/core/models/models.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
 import 'package:jilake_speedo/core/services/location_service.dart';
+import 'package:jilake_speedo/core/services/storage_service.dart';
 import 'package:jilake_speedo/features/session/session_controller.dart';
 import 'package:sembast/sembast_memory.dart';
 
@@ -84,6 +85,54 @@ class _Host extends ConsumerWidget {
     ref.watch(sessionControllerProvider);
     return const SizedBox.shrink();
   }
+}
+
+/// [IdbStorageService] whose session/track-point writes throw, simulating a
+/// storage failure (IDB quota, blocked profile). Reads delegate to the real
+/// service so vehicles/settings still load.
+class ThrowingStorageService implements StorageService {
+  ThrowingStorageService(this._inner);
+
+  final IdbStorageService _inner;
+
+  @override
+  Future<void> appendTrackPoints(String sessionId, List<TrackPoint> points) =>
+      throw StateError('storage write failed');
+
+  @override
+  Future<void> saveSession(Session session) =>
+      throw StateError('storage write failed');
+
+  @override
+  Future<void> init() => _inner.init();
+
+  @override
+  Future<List<Vehicle>> vehicles() => _inner.vehicles();
+
+  @override
+  Future<void> upsertVehicle(Vehicle vehicle) => _inner.upsertVehicle(vehicle);
+
+  @override
+  Future<void> deleteVehicle(String id) => _inner.deleteVehicle(id);
+
+  @override
+  Future<List<Session>> sessionsForVehicle(String vehicleId, {int? limit}) =>
+      _inner.sessionsForVehicle(vehicleId, limit: limit);
+
+  @override
+  Future<List<TrackPoint>> trackPoints(String sessionId) =>
+      _inner.trackPoints(sessionId);
+
+  @override
+  Future<void> upsertTimelineEntry(TimelineEntry entry) =>
+      _inner.upsertTimelineEntry(entry);
+
+  @override
+  Future<List<TimelineEntry>> timelineEntriesForDay(DateTime day) =>
+      _inner.timelineEntriesForDay(day);
+
+  @override
+  Future<List<DateTime>> timelineDays() => _inner.timelineDays();
 }
 
 void main() {
@@ -215,6 +264,46 @@ void main() {
       expect(points, hasLength(5));
 
       // Wake lock released on stop.
+      expect(wakeLock.holdCount, 1);
+      expect(wakeLock.releaseCount, 1);
+    });
+  });
+
+  testWidgets('storage failure still releases the wake lock and exposes the '
+      'summary', (tester) async {
+    await tester.runAsync(() async {
+      final container = ProviderContainer(
+        overrides: [
+          locationServiceProvider.overrideWithValue(locationService),
+          wakeLockServiceProvider.overrideWithValue(wakeLock),
+          storageServiceProvider.overrideWithValue(
+            ThrowingStorageService(storage),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: _Host()),
+        ),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.start(const DistanceTarget(100));
+
+      await emit(fix(timestampMs: 0));
+      for (var i = 1; i <= 10; i++) {
+        await emit(fix(timestampMs: i * 1000, lng: lngAt(i * 10.0)));
+      }
+      // Let the fire-and-forget persist (which throws) settle.
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      // The session finished and its summary is exposed despite the failed
+      // persist, and the wake lock hold was released (no leak).
+      final state = container.read(sessionControllerProvider);
+      expect(state.lastSummary, isNotNull);
+      expect(state.lastSummary!.distanceM, closeTo(100, 0.01));
       expect(wakeLock.holdCount, 1);
       expect(wakeLock.releaseCount, 1);
     });

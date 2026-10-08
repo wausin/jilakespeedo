@@ -10,12 +10,13 @@ import '../../core/services/location_service.dart';
 /// State of the session feature: the live [SessionState] handed out by the
 /// [SessionEngine] (mutable — render from it, never cache its fields), the
 /// progress fraction toward the target, and the summary of the most recently
-/// ended session (finished or stopped).
+/// ended session (finished or stopped) together with that session's target.
 class SessionControllerState {
   const SessionControllerState({
     this.live,
     this.progress = 0,
     this.lastSummary,
+    this.lastTarget,
   });
 
   /// Live session state while a session is running; stays non-null (frozen,
@@ -28,15 +29,22 @@ class SessionControllerState {
   /// Summary of the last session that ended (completed or stopped).
   final SessionSummary? lastSummary;
 
+  /// Target of the session that produced [lastSummary]. Kept separately
+  /// from [live] because a stopped session clears [live] but its summary
+  /// layout still depends on whether the target was distance or duration.
+  final SessionTarget? lastTarget;
+
   SessionControllerState copyWith({
     SessionState? Function()? live,
     double? progress,
     SessionSummary? Function()? lastSummary,
+    SessionTarget? Function()? lastTarget,
   }) =>
       SessionControllerState(
         live: live != null ? live() : this.live,
         progress: progress ?? this.progress,
         lastSummary: lastSummary != null ? lastSummary() : this.lastSummary,
+        lastTarget: lastTarget != null ? lastTarget() : this.lastTarget,
       );
 }
 
@@ -141,7 +149,7 @@ class SessionController extends Notifier<SessionControllerState> {
     );
 
     if (sessionState.finished) {
-      _endSession(SessionStatus.completed, sessionState.summary!);
+      unawaited(_endSession(SessionStatus.completed, sessionState.summary!));
     }
   }
 
@@ -206,6 +214,10 @@ class SessionController extends Notifier<SessionControllerState> {
     unawaited(_subscription?.cancel());
     _subscription = null;
 
+    // Capture the ended session's target before clearing it: the summary
+    // card's layout depends on it even after [live] is cleared (stopped).
+    final endedTarget = _target;
+
     final session = _session;
     if (session != null) {
       final endedAtMs = session.startedAtMs + summary.elapsedMs;
@@ -217,8 +229,15 @@ class SessionController extends Notifier<SessionControllerState> {
       final storage = ref.read(storageServiceProvider);
       // Track points first: a crash between the two writes then leaves
       // orphaned points rather than a session referencing missing data.
-      await storage.appendTrackPoints(session.id, _trackPoints);
-      await storage.saveSession(record);
+      // A storage failure must never leak the wake lock or lose the
+      // summary — persist is best-effort, so catch and continue.
+      try {
+        await storage.appendTrackPoints(session.id, _trackPoints);
+        await storage.saveSession(record);
+      } catch (_) {
+        // Swallow: the session is over; the summary is still surfaced and
+        // the wake lock is released below.
+      }
     }
     _session = null;
     _trackPoints = [];
@@ -236,6 +255,7 @@ class SessionController extends Notifier<SessionControllerState> {
       live: status == SessionStatus.completed ? state.live : null,
       progress: status == SessionStatus.completed ? 1 : 0,
       lastSummary: summary,
+      lastTarget: endedTarget,
     );
   }
 }
