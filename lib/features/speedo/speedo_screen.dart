@@ -51,46 +51,41 @@ class SpeedoScreen extends ConsumerWidget {
     final peakInUnit = convertSpeed(ms: speedo.peak, unit: unit);
     final readoutGlow = Theme.of(context).colorScheme.primary;
 
-    final gauge = AspectRatio(
-      aspectRatio: 1,
-      child: CustomPaint(
-        painter: GaugePainter(
-          rangeKmh: gaugeRange,
-          speedFraction: speedInUnit / gaugeRange,
-          peakFraction: peakInUnit / gaugeRange,
-          weakSignal: speedo.weakSignal,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              const Spacer(flex: 3),
-              Text(
-                speedInUnit.round().toString(),
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 44,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                  shadows: [
-                    Shadow(
-                      color: readoutGlow.withValues(alpha: 0.8),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
+    final gauge = SpeedoGauge(
+      rangeMax: gaugeRange,
+      speedFraction: speedInUnit / gaugeRange,
+      peakFraction: peakInUnit / gaugeRange,
+      weakSignal: speedo.weakSignal,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            const Spacer(flex: 3),
+            Text(
+              speedInUnit.round().toString(),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 44,
+                fontWeight: FontWeight.w800,
+                height: 1,
+                shadows: [
+                  Shadow(
+                    color: readoutGlow.withValues(alpha: 0.8),
+                    blurRadius: 18,
+                  ),
+                ],
               ),
-              Text(
-                unitLabel(unit),
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 14,
-                  letterSpacing: 2,
-                ),
+            ),
+            Text(
+              unitLabel(unit),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 14,
+                letterSpacing: 2,
               ),
-              const Spacer(flex: 2),
-            ],
-          ),
+            ),
+            const Spacer(flex: 2),
+          ],
         ),
       ),
     );

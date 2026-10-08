@@ -8,29 +8,35 @@ import 'package:flutter/material.dart';
 /// marker, redline arc over the last 10% of the range, and an amber
 /// weak-signal dot.
 ///
-/// Purely declarative: every frame is fully described by [rangeKmh],
-/// [speedFraction], [peakFraction] and [weakSignal]. Per-frame needle motion
-/// is driven by repainting with new fractions (see `SpeedoGauge`), so the
-/// whole screen never rebuilds during the animation.
+/// Purely declarative: every frame is fully described by [rangeMax],
+/// [speedFraction], [peakFraction], [weakSignal] and [weakPulse]. Per-frame
+/// needle motion is driven by repainting with new fractions (see
+/// [SpeedoGauge]), so the whole screen never rebuilds during the animation.
 class GaugePainter extends CustomPainter {
   const GaugePainter({
-    required this.rangeKmh,
+    required this.rangeMax,
     required this.speedFraction,
     required this.peakFraction,
     required this.weakSignal,
+    this.weakPulse = 1,
   });
 
-  /// Gauge full-scale value in km/h.
-  final double rangeKmh;
+  /// Gauge full-scale value in the current display unit
+  /// (km/h when the unit is km/h, mph when the unit is mph).
+  final double rangeMax;
 
-  /// Needle position as a fraction (0..1, clamped) of [rangeKmh].
+  /// Needle position as a fraction (0..1, clamped) of [rangeMax].
   final double speedFraction;
 
-  /// Peak marker position as a fraction (0..1, clamped) of [rangeKmh].
+  /// Peak marker position as a fraction (0..1, clamped) of [rangeMax].
   final double peakFraction;
 
   /// Whether the GPS signal is weak (accuracy worse than 50 m).
   final bool weakSignal;
+
+  /// Weak-signal dot intensity (0..1); animated by [SpeedoGauge] while
+  /// [weakSignal] is true to produce the amber pulse. Defaults to 1 (full).
+  final double weakPulse;
 
   /// Start of the sweep: 225° (bottom-left).
   static const double startAngleDeg = 225;
@@ -84,7 +90,7 @@ class GaugePainter extends CustomPainter {
   }
 
   void _paintTicksAndDigits(Canvas canvas, Offset center, double radius) {
-    final range = rangeKmh.round();
+    final range = rangeMax.round();
     if (range <= 0) return;
 
     final tickPaint = Paint()
@@ -184,19 +190,114 @@ class GaugePainter extends CustomPainter {
   }
 
   void _paintWeakSignalDot(Canvas canvas, Offset center, double radius) {
+    final pulse = weakPulse.clamp(0.0, 1.0);
     final dotCenter = center + Offset(0, -radius * 0.42);
     final glowPaint = Paint()
-      ..color = _amberColor.withValues(alpha: 0.6)
+      ..color = _amberColor.withValues(alpha: 0.6 * pulse)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.03);
     canvas.drawCircle(dotCenter, radius * 0.045, glowPaint);
-    final dotPaint = Paint()..color = _amberColor;
+    final dotPaint = Paint()
+      ..color = _amberColor.withValues(alpha: 0.35 + 0.65 * pulse);
     canvas.drawCircle(dotCenter, radius * 0.028, dotPaint);
   }
 
   @override
   bool shouldRepaint(GaugePainter oldDelegate) =>
-      oldDelegate.rangeKmh != rangeKmh ||
+      oldDelegate.rangeMax != rangeMax ||
       oldDelegate.speedFraction != speedFraction ||
       oldDelegate.peakFraction != peakFraction ||
-      oldDelegate.weakSignal != weakSignal;
+      oldDelegate.weakSignal != weakSignal ||
+      oldDelegate.weakPulse != weakPulse;
+}
+
+/// Square gauge widget wrapping a [GaugePainter].
+///
+/// Owns the weak-signal pulse: a subtle alpha oscillation (two-way repeat,
+/// 900 ms per leg) that runs **only while [weakSignal] is true** — the pulse
+/// animation is stopped whenever the signal is good, so no ticker is active
+/// on a healthy gauge.
+class SpeedoGauge extends StatefulWidget {
+  const SpeedoGauge({
+    super.key,
+    required this.rangeMax,
+    required this.speedFraction,
+    required this.peakFraction,
+    required this.weakSignal,
+    this.child,
+  });
+
+  /// Gauge full-scale value in the current display unit.
+  final double rangeMax;
+
+  /// Needle position as a fraction of [rangeMax].
+  final double speedFraction;
+
+  /// Peak marker position as a fraction of [rangeMax].
+  final double peakFraction;
+
+  /// Whether the GPS signal is weak; drives the pulsing amber dot.
+  final bool weakSignal;
+
+  /// Optional overlay drawn above the gauge (e.g. the digital readout).
+  final Widget? child;
+
+  @override
+  State<SpeedoGauge> createState() => _SpeedoGaugeState();
+}
+
+class _SpeedoGaugeState extends State<SpeedoGauge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _syncPulse();
+  }
+
+  @override
+  void didUpdateWidget(SpeedoGauge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.weakSignal != widget.weakSignal) {
+      _syncPulse();
+    }
+  }
+
+  void _syncPulse() {
+    if (widget.weakSignal) {
+      _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, child) => CustomPaint(
+          painter: GaugePainter(
+            rangeMax: widget.rangeMax,
+            speedFraction: widget.speedFraction,
+            peakFraction: widget.peakFraction,
+            weakSignal: widget.weakSignal,
+            weakPulse: widget.weakSignal ? _pulse.value : 1,
+          ),
+          child: child,
+        ),
+        child: widget.child,
+      ),
+    );
+  }
 }
