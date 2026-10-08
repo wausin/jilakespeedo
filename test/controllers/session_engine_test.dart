@@ -178,6 +178,21 @@ void main() {
   });
 
   group('SessionEngine finish freeze', () {
+    test('target met on the first fix finishes with zero elapsed', () {
+      final engine = SessionEngine(accuracyThresholdM: 50);
+      engine.start(
+        vehicleId: 'v1',
+        target: SessionTarget.distance(0),
+        startedAtMs: 5000,
+      );
+
+      final done = engine.onFix(fix(timestampMs: 5000));
+      expect(done!.finished, isTrue);
+      expect(done.summary!.elapsedMs, 0);
+      expect(done.summary!.avgSpeedMs, 10.0);
+      expect(done.summary!.distanceM, 0);
+    });
+
     test('fix after finish returns the same state with no changes', () {
       final engine = SessionEngine(accuracyThresholdM: 50);
       engine.start(
