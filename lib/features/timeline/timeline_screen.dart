@@ -39,6 +39,18 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         240.0;
     final gaugeMaxMs = gaugeMaxKmh / 3.6;
 
+    // Surface a record-start failure (e.g. location stream errored) and
+    // clear it so the snackbar shows once.
+    final error = timeline.error;
+    if (error != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error)));
+        ref.read(timelineControllerProvider.notifier).clearError();
+      });
+    }
+
     // While recording, show the live recording; otherwise show the selected
     // day's stored segments.
     final segments = timeline.recording

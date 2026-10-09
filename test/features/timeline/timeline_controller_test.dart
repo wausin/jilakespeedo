@@ -57,6 +57,28 @@ class FakeWakeLockService extends WakeLockService {
   }
 }
 
+/// A [LocationService] whose watch() stream errors immediately — simulates
+/// permission not yet granted / hardware failure on the record path.
+class ErroringLocationService implements LocationService {
+  @override
+  bool get isSupported => true;
+
+  @override
+  LocationStatus get status => LocationStatus.idle;
+
+  @override
+  Stream<PositionFix> watch() => Stream.error('location unavailable');
+
+  @override
+  Stream<LocationStatus> get statusStream => const Stream.empty();
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+}
+
 /// Meters per degree of longitude at the equator (sphere, R = 6371000 m),
 /// so tests can place fixes at exact metric offsets.
 const double _metersPerDegLng = 6371000.0 * math.pi / 180.0;
@@ -290,6 +312,39 @@ void main() {
       // The wake lock was never touched: replay is not recording.
       expect(wakeLock.holdCount, 0);
       expect(wakeLock.releaseCount, 0);
+    });
+  });
+
+  testWidgets('watch() stream error on start keeps recording off, surfaces '
+      'an error message, and releases the wake lock', (tester) async {
+    await tester.runAsync(() async {
+      final container = ProviderContainer(
+        overrides: [
+          locationServiceProvider.overrideWithValue(ErroringLocationService()),
+          wakeLockServiceProvider.overrideWithValue(wakeLock),
+          storageServiceProvider.overrideWithValue(storage),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: _Host()),
+        ),
+      );
+      final controller = container.read(timelineControllerProvider.notifier);
+
+      await controller.toggleRecording();
+
+      // Pump the event loop so the stream error lands.
+      for (var i = 0; i < 20; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+
+      final state = container.read(timelineControllerProvider);
+      expect(state.recording, isFalse);
+      expect(state.error, isNotNull);
+      expect(wakeLock.holdCount, 1);
+      expect(wakeLock.releaseCount, 1);
     });
   });
 }
