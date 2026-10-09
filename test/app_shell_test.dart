@@ -5,13 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jilake_speedo/app.dart';
 import 'package:jilake_speedo/core/controllers/providers.dart';
+import 'package:jilake_speedo/core/controllers/update_controller.dart';
 import 'package:jilake_speedo/core/services/connectivity_service.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
 import 'package:jilake_speedo/core/services/location_service.dart';
+import 'package:jilake_speedo/core/services/update_checker.dart';
 import 'package:jilake_speedo/features/session/session_screen.dart';
 import 'package:jilake_speedo/features/settings/settings_screen.dart';
 import 'package:jilake_speedo/features/speedo/speedo_screen.dart';
 import 'package:jilake_speedo/features/timeline/timeline_screen.dart';
+import 'package:jilake_speedo/features/update/update_badge.dart';
 import 'package:sembast/sembast_memory.dart';
 
 /// Fake [LocationService] with a controllable fix stream and status stream.
@@ -59,6 +62,24 @@ class FakeConnectivityService implements ConnectivityService {
   bool get isOffline => false;
 }
 
+/// [UpdateChecker] that always reports an update available.
+class _AvailableUpdateChecker extends UpdateChecker {
+  @override
+  String get runningVersion => 'test-old';
+
+  @override
+  Future<String?> fetchServerVersion() async => 'test-new';
+}
+
+/// [UpdateChecker] that never reports an update.
+class _CurrentUpdateChecker extends UpdateChecker {
+  @override
+  String get runningVersion => 'test-same';
+
+  @override
+  Future<String?> fetchServerVersion() async => 'test-same';
+}
+
 /// Recording [WakeLockService]: ref-counted like the real one, no platform
 /// wakelock behind it (same pattern as the session/timeline tests).
 class FakeWakeLockService extends WakeLockService {
@@ -88,7 +109,7 @@ void main() {
     wakeLock = FakeWakeLockService();
   });
 
-  Future<void> pumpApp(WidgetTester tester) {
+  Future<void> pumpApp(WidgetTester tester, {UpdateChecker? updateChecker}) {
     return tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -97,6 +118,8 @@ void main() {
           wakeLockServiceProvider.overrideWithValue(wakeLock),
           connectivityServiceProvider
               .overrideWithValue(FakeConnectivityService()),
+          updateCheckerProvider
+              .overrideWithValue(updateChecker ?? _CurrentUpdateChecker()),
         ],
         child: const JilakeSpeedoApp(),
       ),
@@ -210,5 +233,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(wakeLock.holdCount, 2);
     expect(wakeLock.releaseCount, 1);
+  });
+
+  testWidgets('update badge appears when a newer build is on the server',
+      (tester) async {
+    await pumpApp(tester, updateChecker: _AvailableUpdateChecker());
+    // The badge has an always-running breathing animation, so pumpAndSettle
+    // never settles; pump fixed durations instead to let the check land.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(find.byKey(UpdateBadge.badgeKey), findsOneWidget);
+  });
+
+  testWidgets('no update badge when the build is current', (tester) async {
+    await pumpApp(tester, updateChecker: _CurrentUpdateChecker());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(UpdateBadge.badgeKey), findsNothing);
   });
 }
