@@ -48,10 +48,18 @@ class WakeLockService {
   int _count = 0;
 
   /// Acquires a hold on the wakelock; enables it on the first hold.
+  ///
+  /// Best-effort: a browser without the Screen Wake Lock API (or a denied
+  /// request) must never throw into the caller — the app still works, the
+  /// screen just may dim.
   Future<void> hold() async {
     _count++;
     if (_count == 1) {
-      await WakelockPlus.enable();
+      try {
+        await WakelockPlus.enable();
+      } catch (_) {
+        // Unsupported or denied — ignore.
+      }
     }
   }
 
@@ -60,7 +68,11 @@ class WakeLockService {
     if (_count == 0) return;
     _count--;
     if (_count == 0) {
-      await WakelockPlus.disable();
+      try {
+        await WakelockPlus.disable();
+      } catch (_) {
+        // Unsupported — ignore.
+      }
     }
   }
 }
