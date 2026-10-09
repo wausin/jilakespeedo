@@ -5,6 +5,7 @@ import 'package:sembast/sembast.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/models.dart';
+import '../services/connectivity_service.dart';
 import '../services/idb_storage_service.dart';
 import '../services/location_service.dart';
 import '../services/storage_service.dart';
@@ -66,6 +67,14 @@ class WakeLockService {
 
 final wakeLockServiceProvider = Provider<WakeLockService>(
   (_) => WakeLockService(),
+);
+
+/// App-wide [ConnectivityService] (browser online/offline). `main.dart`
+/// overrides with [WebConnectivityService]; tests override with a fake.
+final connectivityServiceProvider = Provider<ConnectivityService>(
+  (_) => throw UnimplementedError(
+    'connectivityServiceProvider must be overridden (see main.dart)',
+  ),
 );
 
 /// User settings state (display units, ...).

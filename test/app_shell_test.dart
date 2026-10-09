@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jilake_speedo/app.dart';
 import 'package:jilake_speedo/core/controllers/providers.dart';
+import 'package:jilake_speedo/core/services/connectivity_service.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
 import 'package:jilake_speedo/core/services/location_service.dart';
 import 'package:jilake_speedo/features/session/session_screen.dart';
@@ -49,14 +50,42 @@ class FakeLocationService implements LocationService {
   }
 }
 
+/// Always-online [ConnectivityService] for the shell tests.
+class FakeConnectivityService implements ConnectivityService {
+  @override
+  Stream<bool> get offlineStream => const Stream.empty();
+
+  @override
+  bool get isOffline => false;
+}
+
+/// Recording [WakeLockService]: ref-counted like the real one, no platform
+/// wakelock behind it (same pattern as the session/timeline tests).
+class FakeWakeLockService extends WakeLockService {
+  int holdCount = 0;
+  int releaseCount = 0;
+
+  @override
+  Future<void> hold() async {
+    holdCount++;
+  }
+
+  @override
+  Future<void> release() async {
+    releaseCount++;
+  }
+}
+
 void main() {
   late FakeLocationService locationService;
   late IdbStorageService storage;
+  late FakeWakeLockService wakeLock;
 
   setUp(() async {
     locationService = FakeLocationService();
     storage = IdbStorageService(databaseFactory: newDatabaseFactoryMemory());
     await storage.init();
+    wakeLock = FakeWakeLockService();
   });
 
   Future<void> pumpApp(WidgetTester tester) {
@@ -65,6 +94,9 @@ void main() {
         overrides: [
           locationServiceProvider.overrideWithValue(locationService),
           storageServiceProvider.overrideWithValue(storage),
+          wakeLockServiceProvider.overrideWithValue(wakeLock),
+          connectivityServiceProvider
+              .overrideWithValue(FakeConnectivityService()),
         ],
         child: const JilakeSpeedoApp(),
       ),
@@ -149,5 +181,34 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(locationService.startCount, greaterThan(0));
+  });
+
+  testWidgets('wake lock is held on the speedo tab and released when '
+      'switching away', (tester) async {
+    await pumpApp(tester);
+    await tester.pumpAndSettle();
+
+    // Starts on the speedo tab: lock held so the screen stays on while riding.
+    expect(find.byKey(SpeedoScreen.markerKey), findsOneWidget);
+    expect(wakeLock.holdCount, 1);
+    expect(wakeLock.releaseCount, 0);
+
+    // Switch to Session: speedo no longer visible, lock released.
+    await tester.tap(find.text('Session'));
+    await tester.pumpAndSettle();
+    expect(wakeLock.holdCount, 1);
+    expect(wakeLock.releaseCount, 1);
+
+    // Switch to Timeline: still released.
+    await tester.tap(find.text('Timeline'));
+    await tester.pumpAndSettle();
+    expect(wakeLock.holdCount, 1);
+    expect(wakeLock.releaseCount, 1);
+
+    // Back to Speedo: held again.
+    await tester.tap(find.text('Speedo'));
+    await tester.pumpAndSettle();
+    expect(wakeLock.holdCount, 2);
+    expect(wakeLock.releaseCount, 1);
   });
 }
