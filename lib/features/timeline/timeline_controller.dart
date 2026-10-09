@@ -16,6 +16,7 @@ class TimelineState {
     this.liveSegments = const [],
     this.activeDay,
     this.dayEntries = const [],
+    this.error,
   });
 
   /// Whether the recorder is currently collecting fixes.
@@ -33,17 +34,23 @@ class TimelineState {
   /// Stored entries for [activeDay].
   final List<TimelineEntry> dayEntries;
 
+  /// Human-readable error from the last failed record start (e.g. the
+  /// location stream errored), or null when there is no error to show.
+  final String? error;
+
   TimelineState copyWith({
     bool? recording,
     List<TimelineSegment>? liveSegments,
     DateTime? Function()? activeDay,
     List<TimelineEntry>? dayEntries,
+    String? Function()? error,
   }) =>
       TimelineState(
         recording: recording ?? this.recording,
         liveSegments: liveSegments ?? this.liveSegments,
         activeDay: activeDay != null ? activeDay() : this.activeDay,
         dayEntries: dayEntries ?? this.dayEntries,
+        error: error != null ? error() : this.error,
       );
 }
 
@@ -88,8 +95,27 @@ class TimelineController extends Notifier<TimelineState> {
     await ref.read(wakeLockServiceProvider).hold();
     _detector.reset();
     unawaited(_subscription?.cancel());
-    _subscription = ref.read(locationServiceProvider).watch().listen(_onFix);
-    state = state.copyWith(recording: true, liveSegments: const []);
+    _subscription = ref.read(locationServiceProvider).watch().listen(
+          _onFix,
+          onError: (Object e) => unawaited(_onStreamError(e)),
+        );
+    state = state.copyWith(recording: true, liveSegments: const [], error: () => null);
+  }
+
+  /// A fix-stream error (e.g. permission not yet granted on this path, or
+  /// hardware failure) ends the recording gracefully instead of leaving a
+  /// broken live view: cancel, release the wake lock, flip recording off,
+  /// and surface a message the screen can show.
+  Future<void> _onStreamError(Object error) async {
+    unawaited(_subscription?.cancel());
+    _subscription = null;
+    await ref.read(wakeLockServiceProvider).release();
+    if (_disposed) return;
+    state = state.copyWith(
+      recording: false,
+      liveSegments: const [],
+      error: () => 'Location unavailable: $error',
+    );
   }
 
   Future<void> _stopRecording() async {
@@ -138,6 +164,12 @@ class TimelineController extends Notifier<TimelineState> {
       activeDay: () => midnight,
       dayEntries: entries,
     );
+  }
+
+  /// Clears a surfaced error after the screen has shown it.
+  void clearError() {
+    if (state.error == null) return;
+    state = state.copyWith(error: () => null);
   }
 
   void _onFix(PositionFix fix) {

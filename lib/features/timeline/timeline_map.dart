@@ -167,26 +167,31 @@ class _TimelineMapState extends State<TimelineMap> {
     final initialCenter =
         points.isEmpty ? const LatLng(0, 0) : points.first;
 
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: initialCenter,
-        initialZoom: 14,
+    // Dark container: if tiles fail to load (offline, provider hiccup), the
+    // surface stays dark instead of flashing a naked white screen.
+    return Container(
+      decoration: const BoxDecoration(color: Color(0xFF0E0E10)),
+      child: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: initialCenter,
+          initialZoom: 14,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: TimelineMap.tileUrl,
+            subdomains: TimelineMap.subdomains,
+            userAgentPackageName: 'com.jilake.speedo',
+          ),
+          PolylineLayer(polylines: _buildPolylines()),
+          MarkerLayer(markers: _buildStopMarkers()),
+          const RichAttributionWidget(
+            attributions: [
+              TextSourceAttribution(TimelineMap.attribution),
+            ],
+          ),
+        ],
       ),
-      children: [
-        TileLayer(
-          urlTemplate: TimelineMap.tileUrl,
-          subdomains: TimelineMap.subdomains,
-          userAgentPackageName: 'com.jilake.speedo',
-        ),
-        PolylineLayer(polylines: _buildPolylines()),
-        MarkerLayer(markers: _buildStopMarkers()),
-        const RichAttributionWidget(
-          attributions: [
-            TextSourceAttribution(TimelineMap.attribution),
-          ],
-        ),
-      ],
     );
   }
 }

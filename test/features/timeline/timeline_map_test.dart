@@ -67,4 +67,32 @@ void main() {
     // Stop marker dwell label.
     expect(find.text('12 min'), findsOneWidget);
   });
+
+  testWidgets('renders on a dark surface (never a naked white background)',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TimelineMap(segments: segments, gaugeMaxMs: 30),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // The map sits on a dark container so tile-load failure never shows a
+    // white screen.
+    final container = tester.widget<Container>(
+      find.ancestor(
+        of: find.byType(FlutterMap),
+        matching: find.byType(Container),
+      ).first,
+    );
+    final decoration = container.decoration as BoxDecoration?;
+    final bg = decoration?.color ?? container.color;
+    expect(bg, isNotNull, reason: 'map must have a background color');
+    // Dark racing theme: every channel well below mid-grey.
+    expect(bg!.r, lessThan(0.3));
+    expect(bg.g, lessThan(0.3));
+    expect(bg.b, lessThan(0.3));
+  });
 }
