@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/models/models.dart';
 
-/// Map for the timeline screen: OpenStreetMap tiles, the day's route as a
+/// Map for the timeline screen: CARTO dark tiles, the day's route as a
 /// speed-colored polyline, and stop markers with their dwell duration.
 ///
 /// Color ramps blue → red as point speed goes from 30% to 70% of
@@ -25,12 +25,14 @@ class TimelineMap extends StatefulWidget {
   /// ramp's 30%/70% thresholds.
   final double gaugeMaxMs;
 
-  /// OpenStreetMap standard tiles: the most reliable free source worldwide,
-  /// no watermark. (Switched from CARTO dark, which was slow/unreachable on
-  /// some networks.)
+  /// CARTO dark basemaps: free, keyless, CORS-enabled, and confirmed working
+  /// from this app. (OSM's tile server blocks PWA traffic with an
+  /// `x-blocked: Access denied` placeholder — verified 2026-10.)
   static const String tileUrl =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  static const String attribution = '© OpenStreetMap contributors';
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+  static const List<String> subdomains = ['a', 'b', 'c', 'd'];
+  static const String attribution =
+      '© OpenStreetMap contributors © CARTO';
 
   @override
   State<TimelineMap> createState() => _TimelineMapState();
@@ -199,6 +201,7 @@ class _TimelineMapState extends State<TimelineMap> {
             children: [
               TileLayer(
                 urlTemplate: TimelineMap.tileUrl,
+                subdomains: TimelineMap.subdomains,
                 userAgentPackageName: 'com.jilake.speedo',
               ),
               PolylineLayer(polylines: _buildPolylines()),

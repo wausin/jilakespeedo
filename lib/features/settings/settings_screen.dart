@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/controllers/providers.dart';
+import '../../core/controllers/update_controller.dart';
 import '../../core/models/models.dart';
 import '../../core/services/gpx_exporter.dart';
 import '../../core/services/storage_service.dart';
@@ -28,6 +29,9 @@ class SettingsScreen extends ConsumerWidget {
 
   /// Marker for the export section.
   static const Key exportSectionKey = Key('settings-export-section');
+
+  /// Marker for the manual "Check for updates" button (About section).
+  static const Key checkUpdateKey = Key('check-update-button');
 
   /// Export row key for the session with [id].
   static Key exportKeyFor(String id) => Key('export-$id');
@@ -204,19 +208,55 @@ class _ExportSection extends ConsumerWidget {
   }
 }
 
-/// About/install instructions for both mobile platforms.
-class _AboutSection extends StatelessWidget {
+/// About/install instructions for both mobile platforms, plus a manual
+/// "Check for updates" action that reports the result inline.
+class _AboutSection extends ConsumerStatefulWidget {
   const _AboutSection();
+
+  @override
+  ConsumerState<_AboutSection> createState() => _AboutSectionState();
+}
+
+class _AboutSectionState extends ConsumerState<_AboutSection> {
+  bool _checking = false;
+
+  Future<void> _checkForUpdates() async {
+    setState(() => _checking = true);
+    final checker = ref.read(updateCheckerProvider);
+    final result = await checkUpdateNow(checker);
+    if (!mounted) return;
+    setState(() => _checking = false);
+    // Keep the app-shell badge in sync with the manual result.
+    ref.read(updateAvailableProvider.notifier).state = result.available;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(result.message)));
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final running = ref.read(updateCheckerProvider).runningVersion;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _SectionHeader('About'),
         const SizedBox(height: 8),
-        Text('Jilake Speedo — GPS speedometer PWA', style: theme.textTheme.bodyMedium),
+        Text('Jilake Speedo — GPS speedometer PWA',
+            style: theme.textTheme.bodyMedium),
+        Text('Version $running', style: theme.textTheme.bodySmall),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          key: SettingsScreen.checkUpdateKey,
+          onPressed: _checking ? null : _checkForUpdates,
+          icon: _checking
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.system_update_alt),
+          label: Text(_checking ? 'Checking…' : 'Check for updates'),
+        ),
         const SizedBox(height: 8),
         Text(
           'Install as an app:\n'

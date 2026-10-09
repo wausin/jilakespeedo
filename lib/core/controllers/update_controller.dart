@@ -17,6 +17,41 @@ final updateCheckerProvider = Provider<UpdateChecker>(
 /// True when the server hosts a build newer than the running one.
 final updateAvailableProvider = StateProvider<bool>((_) => false);
 
+/// Outcome of a manual update check, for display in the UI.
+class UpdateCheckResult {
+  const UpdateCheckResult({required this.available, required this.message});
+
+  /// Whether the server has a newer build.
+  final bool available;
+
+  /// Human-readable summary for a snackbar.
+  final String message;
+}
+
+/// Runs a single update check and returns a displayable result.
+///
+/// Distinguishes three cases so the user is never misled: an update is
+/// available, the build is current, or the server could not be reached.
+Future<UpdateCheckResult> checkUpdateNow(UpdateChecker checker) async {
+  final server = await checker.fetchServerVersion();
+  if (server == null) {
+    return UpdateCheckResult(
+      available: false,
+      message: 'Could not reach the server — check your connection.',
+    );
+  }
+  if (server != checker.runningVersion) {
+    return UpdateCheckResult(
+      available: true,
+      message: 'Update available ($server). Tap the Update badge to reload.',
+    );
+  }
+  return UpdateCheckResult(
+    available: false,
+    message: "You're up to date (${checker.runningVersion}).",
+  );
+}
+
 /// Checks for updates immediately, then every [interval].
 ///
 /// Web-only in practice (the stub checker never reports an update); the

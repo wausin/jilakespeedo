@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jilake_speedo/core/controllers/update_controller.dart';
 import 'package:jilake_speedo/core/services/update_checker.dart';
 
 /// Fake checker with a configurable server version.
@@ -36,6 +37,31 @@ void main() {
     test('returns false when the server cannot be reached', () async {
       final checker = FakeUpdateChecker(running: '1.0.0+1', server: null);
       expect(await checker.isUpdateAvailable(), isFalse);
+    });
+  });
+
+  group('checkUpdateNow', () {
+    test('reports up-to-date with the running version when server matches',
+        () async {
+      final checker = FakeUpdateChecker(running: '1.0.0+1', server: '1.0.0+1');
+      final result = await checkUpdateNow(checker);
+      expect(result.available, isFalse);
+      expect(result.message, contains('up to date'));
+      expect(result.message, contains('1.0.0+1'));
+    });
+
+    test('reports an available update naming the server version', () async {
+      final checker = FakeUpdateChecker(running: '1.0.0+1', server: '1.0.0+2');
+      final result = await checkUpdateNow(checker);
+      expect(result.available, isTrue);
+      expect(result.message, contains('1.0.0+2'));
+    });
+
+    test('reports offline / unreachable without claiming an update', () async {
+      final checker = FakeUpdateChecker(running: '1.0.0+1', server: null);
+      final result = await checkUpdateNow(checker);
+      expect(result.available, isFalse);
+      expect(result.message.toLowerCase(), contains('could not'));
     });
   });
 }
