@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/models/models.dart';
 
-/// Map for the timeline screen: CARTO dark tiles, the day's route as a
+/// Map for the timeline screen: OpenStreetMap tiles, the day's route as a
 /// speed-colored polyline, and stop markers with their dwell duration.
 ///
 /// Color ramps blue → red as point speed goes from 30% to 70% of
@@ -23,13 +25,12 @@ class TimelineMap extends StatefulWidget {
   /// ramp's 30%/70% thresholds.
   final double gaugeMaxMs;
 
-  /// Tile URL template, subdomains, and attribution per the plan's Global
-  /// Constraints (verbatim).
+  /// OpenStreetMap standard tiles: the most reliable free source worldwide,
+  /// no watermark. (Switched from CARTO dark, which was slow/unreachable on
+  /// some networks.)
   static const String tileUrl =
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-  static const List<String> subdomains = ['a', 'b', 'c', 'd'];
-  static const String attribution =
-      '© OpenStreetMap contributors © CARTO';
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const String attribution = '© OpenStreetMap contributors';
 
   @override
   State<TimelineMap> createState() => _TimelineMapState();
@@ -38,11 +39,27 @@ class TimelineMap extends StatefulWidget {
 class _TimelineMapState extends State<TimelineMap> {
   final MapController _mapController = MapController();
   bool _fitPending = false;
+  bool _showLoading = true;
+  Timer? _loadingTimer;
 
   @override
   void initState() {
     super.initState();
     _fitPending = true;
+    // Tiles are fetched fresh on open (the app shell caches the app, not the
+    // tiles). Show a "Loading map" hint briefly so a blank dark surface is
+    // not mistaken for a broken map; it clears once tiles have had time to
+    // arrive (or the offline banner takes over).
+    _loadingTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _showLoading = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _loadingTimer?.cancel();
+    _mapController.dispose();
+    super.dispose();
   }
 
   @override
@@ -171,24 +188,67 @@ class _TimelineMapState extends State<TimelineMap> {
     // surface stays dark instead of flashing a naked white screen.
     return Container(
       decoration: const BoxDecoration(color: Color(0xFF0E0E10)),
-      child: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: initialCenter,
-          initialZoom: 14,
-        ),
+      child: Stack(
         children: [
-          TileLayer(
-            urlTemplate: TimelineMap.tileUrl,
-            subdomains: TimelineMap.subdomains,
-            userAgentPackageName: 'com.jilake.speedo',
-          ),
-          PolylineLayer(polylines: _buildPolylines()),
-          MarkerLayer(markers: _buildStopMarkers()),
-          const RichAttributionWidget(
-            attributions: [
-              TextSourceAttribution(TimelineMap.attribution),
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: initialCenter,
+              initialZoom: 14,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: TimelineMap.tileUrl,
+                userAgentPackageName: 'com.jilake.speedo',
+              ),
+              PolylineLayer(polylines: _buildPolylines()),
+              MarkerLayer(markers: _buildStopMarkers()),
+              const RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution(TimelineMap.attribution),
+                ],
+              ),
             ],
+          ),
+          if (_showLoading)
+            const Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _LoadingMapPill(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small "Loading map…" hint shown while tiles may still be arriving.
+class _LoadingMapPill extends StatelessWidget {
+  const _LoadingMapPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          SizedBox(width: 8),
+          Text(
+            'Loading map…',
+            style: TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
       ),

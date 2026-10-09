@@ -15,7 +15,9 @@ void main() {
   _generate(512, 'web/icons/Icon-512.png');
   _generateMaskable(192, 'web/icons/Icon-maskable-192.png');
   _generateMaskable(512, 'web/icons/Icon-maskable-512.png');
-  stdout.writeln('Icons generated in web/icons/');
+  // Favicon shown in the browser tab / bookmarks (same gauge design).
+  _generate(64, 'web/favicon.png');
+  stdout.writeln('Icons generated in web/icons/ and web/favicon.png');
 }
 
 void _generate(int size, String path) {
