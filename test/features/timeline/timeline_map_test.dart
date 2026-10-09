@@ -95,4 +95,22 @@ void main() {
     expect(bg.g, lessThan(0.3));
     expect(bg.b, lessThan(0.3));
   });
+
+  testWidgets('shows a Loading map hint on open and clears it after a delay',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TimelineMap(segments: segments, gaugeMaxMs: 30),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Loading map…'), findsOneWidget);
+
+    // After the loading window elapses, the hint is gone.
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.text('Loading map…'), findsNothing);
+  });
 }
