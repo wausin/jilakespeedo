@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,11 +21,24 @@ class TimelineScreen extends ConsumerStatefulWidget {
 
 class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   List<DateTime> _days = const [];
+  bool _offline = false;
+  StreamSubscription<bool>? _offlineSub;
 
   @override
   void initState() {
     super.initState();
     _loadDays();
+    final connectivity = ref.read(connectivityServiceProvider);
+    _offline = connectivity.isOffline;
+    _offlineSub = connectivity.offlineStream.listen((offline) {
+      if (mounted) setState(() => _offline = offline);
+    });
+  }
+
+  @override
+  void dispose() {
+    _offlineSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadDays() async {
@@ -73,9 +88,49 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
             },
           ),
           Expanded(
-            child: TimelineMap(
-              segments: segments,
-              gaugeMaxMs: gaugeMaxMs,
+            child: Stack(
+              children: [
+                TimelineMap(
+                  segments: segments,
+                  gaugeMaxMs: gaugeMaxMs,
+                ),
+                if (_offline)
+                  Positioned(
+                    top: 8,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.cloud_off,
+                              size: 16,
+                              color: Colors.amber,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Offline — map unavailable',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

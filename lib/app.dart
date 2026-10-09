@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -57,6 +59,11 @@ class _AppShellState extends ConsumerState<AppShell> {
   void initState() {
     super.initState();
     ref.read(locationServiceProvider).start();
+    // The speedo is the always-visible riding screen: hold the wake lock
+    // while it is the active tab so the phone does not dim/lock mid-ride.
+    // Capture the service now: ref is not usable from dispose().
+    _wakeLock = ref.read(wakeLockServiceProvider);
+    unawaited(_wakeLock.hold());
     // The speedo vehicle switcher's manage affordances open the Settings
     // screen with the vehicles section scrolled into view.
     SpeedoScreen.onManageVehicles = () {
@@ -74,6 +81,29 @@ class _AppShellState extends ConsumerState<AppShell> {
     };
   }
 
+  late final WakeLockService _wakeLock;
+
+  @override
+  void dispose() {
+    // Release the speedo hold if it is still held (speedo active at dispose).
+    if (_index == 0) {
+      unawaited(_wakeLock.release());
+    }
+    super.dispose();
+  }
+
+  void _onDestinationSelected(int index) {
+    if (index == _index) return;
+    // Hold while the speedo tab is active, release when leaving it. The
+    // ref-counted service means session/timeline holds are unaffected.
+    if (_index == 0) {
+      unawaited(_wakeLock.release());
+    } else if (index == 0) {
+      unawaited(_wakeLock.hold());
+    }
+    setState(() => _index = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(locationStatusProvider).value;
@@ -88,7 +118,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           : IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (index) => setState(() => _index = index),
+        onDestinationSelected: _onDestinationSelected,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.speed),

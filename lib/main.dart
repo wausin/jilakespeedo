@@ -5,6 +5,7 @@ import 'package:sembast_web/sembast_web.dart';
 import 'app.dart';
 import 'core/controllers/providers.dart';
 import 'core/services/idb_storage_service.dart';
+import 'core/services/web_connectivity_service.dart';
 import 'core/services/web_location_service.dart';
 
 Future<void> main() async {
@@ -18,6 +19,9 @@ Future<void> main() async {
         databaseFactoryProvider.overrideWithValue(factory),
         storageServiceProvider.overrideWithValue(storage),
         locationServiceProvider.overrideWithValue(WebLocationService()),
+        connectivityServiceProvider.overrideWithValue(
+          WebConnectivityService(),
+        ),
       ],
       child: const JilakeSpeedoApp(),
     ),
