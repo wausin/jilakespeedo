@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/controllers/providers.dart';
+import 'core/controllers/update_controller.dart';
 import 'core/services/location_service.dart';
+import 'core/services/reloader_stub.dart'
+    if (dart.library.js_interop) 'core/services/reloader_web.dart';
 import 'features/session/session_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/speedo/speedo_screen.dart';
 import 'features/timeline/timeline_screen.dart';
+import 'features/update/update_badge.dart';
 
 /// Root widget: dark racing-red theme hosting the navigation shell.
 class JilakeSpeedoApp extends StatelessWidget {
@@ -47,6 +51,8 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
+  Timer? _updateTimer;
+  late final WakeLockService _wakeLock;
 
   static const List<Widget> _screens = [
     SpeedoScreen(),
@@ -64,6 +70,16 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Capture the service now: ref is not usable from dispose().
     _wakeLock = ref.read(wakeLockServiceProvider);
     unawaited(_wakeLock.hold());
+    // Check for a newer deployed build on start, then periodically.
+    unawaited(
+      startUpdateChecks(
+        ref.read(updateCheckerProvider),
+        (available) {
+          if (!mounted) return;
+          ref.read(updateAvailableProvider.notifier).state = available;
+        },
+      ).then((timer) => _updateTimer = timer),
+    );
     // The speedo vehicle switcher's manage affordances open the Settings
     // screen with the vehicles section scrolled into view.
     SpeedoScreen.onManageVehicles = () {
@@ -81,10 +97,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     };
   }
 
-  late final WakeLockService _wakeLock;
-
   @override
   void dispose() {
+    _updateTimer?.cancel();
     // Release the speedo hold if it is still held (speedo active at dispose).
     if (_index == 0) {
       unawaited(_wakeLock.release());
@@ -108,6 +123,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final status = ref.watch(locationStatusProvider).value;
     final denied = status == LocationStatus.permissionDenied;
+    final updateAvailable = ref.watch(updateAvailableProvider);
 
     return Scaffold(
       body: denied
@@ -115,25 +131,39 @@ class _AppShellState extends ConsumerState<AppShell> {
               key: AppShell.permissionDeniedKey,
               onRetry: () => ref.read(locationServiceProvider).start(),
             )
-          : IndexedStack(index: _index, children: _screens),
+          : Stack(
+              children: [
+                IndexedStack(index: _index, children: _screens),
+                if (updateAvailable)
+                  Positioned(
+                    top: MediaQuery.paddingOf(context).top + 8,
+                    right: 12,
+                    child: UpdateBadge(onTap: reloadApp),
+                  ),
+              ],
+            ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _onDestinationSelected,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.speed),
             label: 'Speedo',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.timer_outlined),
             label: 'Session',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.route),
             label: 'Timeline',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
+            icon: Badge(
+              isLabelVisible: updateAvailable,
+              smallSize: 8,
+              child: const Icon(Icons.settings_outlined),
+            ),
             label: 'Settings',
           ),
         ],
