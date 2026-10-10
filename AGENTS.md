@@ -43,6 +43,20 @@ Key constants (plan Global Constraints): gauge default 240 km/h; GPS accuracy > 
 - Deployable artifact is `build/web` (static files; needs HTTPS hosting for geolocation).
 - Releases tagged `v*.*.*`.
 
+### Release rule (ALWAYS, after every merge to main)
+
+After every merge to `main`, automatically:
+1. Bump `version:` in `pubspec.yaml` — **minor** (`1.0.1`→`1.1.0`) for features,
+   **patch** (`1.0.1`→`1.0.2`) for fixes/polish, **major** (`1.x`→`2.0.0`) for
+   breaking/landmark changes; always increment the `+N` build number.
+2. Run `tool\release.ps1` (NOT plain `flutter build web`) — it injects
+   `APP_VERSION` from pubspec so the running build matches the server's
+   `version.json` and the update badge behaves correctly.
+3. Commit the version bump and push.
+
+The user deploys `build/web` manually. Never deploy a plain
+`flutter build web` (APP_VERSION defaults to `dev` → the badge shows forever).
+
 ## Notes
 
 - `.worktrees/jilake-speedo-v1` holds uncommitted "update checker" WIP (preserved intentionally — not part of v0.1.0).
