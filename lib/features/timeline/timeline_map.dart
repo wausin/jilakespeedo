@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/models/models.dart';
+import '../../core/services/location_service.dart';
 import 'map_config.dart';
 
 /// Map for the timeline screen: dark basemap tiles (MapTiler when a key is
@@ -18,6 +19,7 @@ class TimelineMap extends StatefulWidget {
     super.key,
     required this.segments,
     required this.gaugeMaxMs,
+    this.currentPosition,
   });
 
   /// Segments to render (rides as polylines, stops as markers).
@@ -27,6 +29,10 @@ class TimelineMap extends StatefulWidget {
   /// ramp's 30%/70% thresholds.
   final double gaugeMaxMs;
 
+  /// Latest GPS fix, used to center the map on the user when there is no
+  /// recorded route yet. Null until the first fix arrives.
+  final PositionFix? currentPosition;
+
   /// Tile provider/URL/attribution come from [MapConfig] (MapTiler when a key
   /// is injected, CARTO fallback otherwise).
   static String get tileUrl => MapConfig.tileUrl;
@@ -34,14 +40,21 @@ class TimelineMap extends StatefulWidget {
   static String get attribution => MapConfig.attribution;
 
   @override
-  State<TimelineMap> createState() => _TimelineMapState();
+  State<TimelineMap> createState() => TimelineMapState();
 }
 
-class _TimelineMapState extends State<TimelineMap> {
+class TimelineMapState extends State<TimelineMap> {
   final MapController _mapController = MapController();
   bool _fitPending = false;
   bool _showLoading = true;
   Timer? _loadingTimer;
+
+  /// Wider default zoom so the map is not zoomed uncomfortably close on open.
+  static const double _defaultZoom = 12;
+
+  /// True until we have centered on the user's location (or found a route to
+  /// fit to) — so the first GPS fix recenters the map on the user.
+  bool _awaitingFirstFix = true;
 
   @override
   void initState() {
@@ -178,12 +191,41 @@ class _TimelineMapState extends State<TimelineMap> {
     });
   }
 
+  /// Recenters the map on the user's current location (the "center on me"
+  /// button). No-op when no fix is available yet.
+  void centerOnCurrent() {
+    final fix = widget.currentPosition;
+    if (fix == null) return;
+    _mapController.move(LatLng(fix.lat, fix.lng), 15);
+  }
+
+  /// Centers on the user's location the first time a fix arrives, if there is
+  /// no recorded route to fit to.
+  void _centerOnLocationIfPending() {
+    if (!_awaitingFirstFix) return;
+    if (_allPoints().isNotEmpty) {
+      _awaitingFirstFix = false;
+      return;
+    }
+    final fix = widget.currentPosition;
+    if (fix == null) return;
+    _awaitingFirstFix = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mapController.move(LatLng(fix.lat, fix.lng), _defaultZoom);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     _fitBoundsIfPending();
+    _centerOnLocationIfPending();
     final points = _allPoints();
-    final initialCenter =
-        points.isEmpty ? const LatLng(0, 0) : points.first;
+    final initialCenter = points.isNotEmpty
+        ? points.first
+        : (widget.currentPosition != null
+            ? LatLng(widget.currentPosition!.lat, widget.currentPosition!.lng)
+            : const LatLng(0, 0));
 
     // Dark container: if tiles fail to load (offline, provider hiccup), the
     // surface stays dark instead of flashing a naked white screen.
@@ -195,7 +237,7 @@ class _TimelineMapState extends State<TimelineMap> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: initialCenter,
-              initialZoom: 14,
+              initialZoom: _defaultZoom,
             ),
             children: [
               TileLayer(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jilake_speedo/core/models/models.dart';
+import 'package:jilake_speedo/core/services/location_service.dart';
 import 'package:jilake_speedo/features/timeline/timeline_map.dart';
 
 void main() {
@@ -112,5 +113,36 @@ void main() {
     // After the loading window elapses, the hint is gone.
     await tester.pump(const Duration(seconds: 5));
     expect(find.text('Loading map…'), findsNothing);
+  });
+
+  testWidgets('with no route, centers on the provided current position',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TimelineMap(
+            segments: const [],
+            gaugeMaxMs: 30,
+            currentPosition: PositionFix(
+              lat: 3.139,
+              lng: 101.6869,
+              speedMs: 0,
+              accuracyM: 5,
+              headingDeg: 0,
+              timestampMs: 0,
+              hasNativeSpeed: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+    expect(map.options.initialCenter.latitude, closeTo(3.139, 1e-6));
+    expect(map.options.initialCenter.longitude, closeTo(101.6869, 1e-6));
+    // Common (wider) default zoom, not a deep street-level zoom.
+    expect(map.options.initialZoom, 12);
   });
 }

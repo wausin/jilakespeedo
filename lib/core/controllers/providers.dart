@@ -43,6 +43,17 @@ final locationStatusProvider = StreamProvider<LocationStatus>(
   (ref) => ref.watch(locationServiceProvider).statusStream,
 );
 
+/// The latest accepted position fix, or null until the first one arrives.
+///
+/// Used by the timeline map to center on the user's real location (instead of
+/// a hardcoded point) and by the "center on me" button.
+final currentPositionProvider = StreamProvider<PositionFix?>((ref) {
+  return ref
+      .watch(locationServiceProvider)
+      .watch()
+      .map<PositionFix?>((fix) => fix);
+});
+
 /// Ref-counted wakelock so session and timeline can hold concurrently.
 class WakeLockService {
   int _count = 0;
