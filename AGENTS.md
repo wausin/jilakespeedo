@@ -5,16 +5,17 @@ Flutter Web PWA: a racing-style GPS speedometer with vehicle profiles, session-b
 ## Stack
 
 - Flutter 3.44.8 / Dart 3.12.2 (web target only in v1)
-- flutter_riverpod (state), flutter_map + latlong2 (map), sembast + sembast_web (IndexedDB storage), wakelock_plus, package:web (JS interop for Geolocation)
+- flutter_riverpod (state), flutter_map + latlong2 (map), sembast + sembast_web (IndexedDB storage), wakelock_plus, fl_chart (analytics charts), package:web (JS interop for Geolocation)
 - Map tiles: CARTO `dark_all` (free, no key, attribution required)
 
 ## Commands
 
 ```powershell
-flutter test              # full test suite (103 tests)
+flutter test              # full test suite (115 tests)
+flutter test test/services/update_checker_test.dart   # single file
 flutter analyze           # must be clean before committing
-flutter build web         # production build -> build/web
 flutter run -d chrome     # local dev (geolocation needs https or localhost)
+tool\release.ps1          # release build (see Release rule below)
 ```
 
 ## Architecture
@@ -22,9 +23,10 @@ flutter run -d chrome     # local dev (geolocation needs https or localhost)
 Service seams behind interfaces (swappable per platform later — Android native is the future path):
 - `LocationService` → `WebLocationService` (JS bridge to `navigator.geolocation.watchPosition`; native `coords.speed` authoritative, haversine-delta fallback smoothed)
 - `StorageService` → `IdbStorageService` (IndexedDB via sembast; per-row decode guarded against corrupt rows)
-- `WakeLockService` (ref-counted hold/release; session + timeline can hold concurrently)
+- `WakeLockService` (in `lib/core/controllers/providers.dart`; ref-counted hold/release; session + timeline can hold concurrently)
+- Update checker: `update_controller.dart` + `update_checker_web.dart`/`_stub.dart` conditional imports; compares running `APP_VERSION` against `version.json` on the host → `UpdateBadge` UI
 
-Core logic is pure Dart (no Flutter imports) in `lib/core/`: models, `SpeedSmoother`, `SessionEngine`, `StopDetector`, unit conversions. UI in `lib/features/`: speedo (CustomPainter gauge + vehicle switcher), session (targets + summaries), timeline (map + recording), settings (units, vehicle manager, GPX export, install instructions). App shell: `IndexedStack` + `NavigationBar`, dark racing theme.
+Core logic is pure Dart (no Flutter imports) in `lib/core/`: models, `SpeedSmoother`, `SessionEngine`, `StopDetector`, unit conversions. UI in `lib/features/`: speedo (CustomPainter gauge + digital meter + vehicle switcher + session bar), session (targets + summaries), timeline (map + recording), analytics (fl_chart), settings (units, vehicle manager, GPX export, install instructions), update badge. App shell: `IndexedStack` + `NavigationBar`, dark racing theme.
 
 Key constants (plan Global Constraints): gauge default 240 km/h; GPS accuracy > 50 m = weak signal / excluded from recording; stop detection = 25 m radius for > 3 min; session distance = cumulative travel, not displacement.
 
@@ -59,5 +61,4 @@ The user deploys `build/web` manually. Never deploy a plain
 
 ## Notes
 
-- `.worktrees/jilake-speedo-v1` holds uncommitted "update checker" WIP (preserved intentionally — not part of v0.1.0).
 - Design spec: `docs/superpowers/specs/2026-10-08-jilake-speedo-design.md`; implementation plan: `docs/superpowers/plans/2026-10-08-jilake-speedo.md`.
