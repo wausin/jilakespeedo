@@ -59,6 +59,14 @@ After every merge to `main`, automatically:
 The user deploys `build/web` manually. Never deploy a plain
 `flutter build web` (APP_VERSION defaults to `dev` → the badge shows forever).
 
+### Map tiles
+
+`tool\release.ps1` also needs `MAPTILER_KEY` set in the environment
+(`$env:MAPTILER_KEY = '<key>'`); it is injected as a `--dart-define`. Without
+it the map falls back to CARTO, which some networks serve an
+"API key required" placeholder for. MapTiler keys are origin-restricted, so
+tiles 403 on `localhost` but work from the deployed origin.
+
 ## Notes
 
 - Design spec: `docs/superpowers/specs/2026-10-08-jilake-speedo-design.md`; implementation plan: `docs/superpowers/plans/2026-10-08-jilake-speedo.md`.
