@@ -234,11 +234,17 @@ class TimelineController extends Notifier<TimelineState> {
     return DateTime(dt.year, dt.month, dt.day);
   }
 
-  /// Loads the most recent recorded day (if any) as the initial selection.
+  /// Loads the most recent recorded day as the initial selection, or selects
+  /// today when nothing has been recorded yet (so a date is always active).
   Future<void> _loadLatestDay() async {
     final storage = ref.read(storageServiceProvider);
     final days = await storage.timelineDays();
-    if (_disposed || days.isEmpty) return;
+    if (_disposed) return;
+    if (days.isEmpty) {
+      final now = DateTime.now();
+      await selectDay(DateTime(now.year, now.month, now.day));
+      return;
+    }
     await selectDay(days.first);
   }
 }

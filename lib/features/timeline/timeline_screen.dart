@@ -23,6 +23,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   List<DateTime> _days = const [];
   bool _offline = false;
   StreamSubscription<bool>? _offlineSub;
+  final GlobalKey<TimelineMapState> _mapKey = GlobalKey<TimelineMapState>();
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     final gaugeMaxKmh = ref.watch(vehiclesProvider).activeVehicle?.gaugeMaxKmh ??
         240.0;
     final gaugeMaxMs = gaugeMaxKmh / 3.6;
+    final current = ref.watch(currentPositionProvider).value;
 
     // Surface a record-start failure (e.g. location stream errored) and
     // clear it so the snackbar shows once.
@@ -91,8 +93,22 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
             child: Stack(
               children: [
                 TimelineMap(
+                  key: _mapKey,
                   segments: segments,
                   gaugeMaxMs: gaugeMaxMs,
+                  currentPosition: current,
+                ),
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: FloatingActionButton.small(
+                    heroTag: 'center-on-me',
+                    tooltip: 'Center on my location',
+                    onPressed: current == null
+                        ? null
+                        : () => _mapKey.currentState?.centerOnCurrent(),
+                    child: const Icon(Icons.my_location),
+                  ),
                 ),
                 if (_offline)
                   Positioned(
@@ -135,7 +151,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: timeline.recording
             ? Theme.of(context).colorScheme.error
             : null,
@@ -143,7 +160,8 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
           await ref.read(timelineControllerProvider.notifier).toggleRecording();
           await _loadDays();
         },
-        child: Icon(timeline.recording ? Icons.stop : Icons.fiber_manual_record),
+        icon: Icon(timeline.recording ? Icons.stop : Icons.fiber_manual_record),
+        label: Text(timeline.recording ? 'Stop' : 'Record'),
       ),
     );
   }
