@@ -194,6 +194,16 @@ class SessionController extends Notifier<SessionControllerState> {
     await _endSession(SessionStatus.stopped, _partialSummary(live));
   }
 
+  /// Clears the finished-session summary from the state (dismiss action).
+  void clearSummary() {
+    state = state.copyWith(
+      live: () => null,
+      lastSummary: () => null,
+      lastTarget: () => null,
+      progress: 0,
+    );
+  }
+
   SessionSummary _partialSummary(SessionState live) {
     final samples = live.speedSamples;
     final avg = samples.isEmpty

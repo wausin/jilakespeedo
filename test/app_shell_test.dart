@@ -10,7 +10,7 @@ import 'package:jilake_speedo/core/services/connectivity_service.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
 import 'package:jilake_speedo/core/services/location_service.dart';
 import 'package:jilake_speedo/core/services/update_checker.dart';
-import 'package:jilake_speedo/features/session/session_screen.dart';
+import 'package:jilake_speedo/features/analytics/analytics_screen.dart';
 import 'package:jilake_speedo/features/settings/settings_screen.dart';
 import 'package:jilake_speedo/features/speedo/speedo_screen.dart';
 import 'package:jilake_speedo/features/timeline/timeline_screen.dart';
@@ -137,10 +137,10 @@ void main() {
     // Starts on the speedo screen.
     expect(find.byKey(SpeedoScreen.markerKey), findsOneWidget);
 
-    // Tap Session.
-    await tester.tap(find.text('Session'));
+    // Tap Analytics.
+    await tester.tap(find.text('Analytics'));
     await tester.pumpAndSettle();
-    expect(find.byKey(SessionScreen.markerKey), findsOneWidget);
+    expect(find.byKey(AnalyticsScreen.markerKey), findsOneWidget);
 
     // Tap Timeline.
     await tester.tap(find.text('Timeline'));
@@ -216,8 +216,8 @@ void main() {
     expect(wakeLock.holdCount, 1);
     expect(wakeLock.releaseCount, 0);
 
-    // Switch to Session: speedo no longer visible, lock released.
-    await tester.tap(find.text('Session'));
+    // Switch to Analytics: speedo no longer visible, lock released.
+    await tester.tap(find.text('Analytics'));
     await tester.pumpAndSettle();
     expect(wakeLock.holdCount, 1);
     expect(wakeLock.releaseCount, 1);

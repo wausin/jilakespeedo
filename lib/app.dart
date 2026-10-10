@@ -8,7 +8,7 @@ import 'core/controllers/update_controller.dart';
 import 'core/services/location_service.dart';
 import 'core/services/reloader_stub.dart'
     if (dart.library.js_interop) 'core/services/reloader_web.dart';
-import 'features/session/session_screen.dart';
+import 'features/analytics/analytics_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/speedo/speedo_screen.dart';
 import 'features/timeline/timeline_screen.dart';
@@ -56,7 +56,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   static const List<Widget> _screens = [
     SpeedoScreen(),
-    SessionScreen(),
+    AnalyticsScreen(),
     TimelineScreen(),
     SettingsScreen(),
   ];
@@ -152,7 +152,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
           const NavigationDestination(
             icon: Icon(Icons.timer_outlined),
-            label: 'Session',
+            label: 'Analytics',
           ),
           const NavigationDestination(
             icon: Icon(Icons.route),

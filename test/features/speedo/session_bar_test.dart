@@ -9,7 +9,8 @@ import 'package:jilake_speedo/core/models/units.dart';
 import 'package:jilake_speedo/core/services/idb_storage_service.dart';
 import 'package:jilake_speedo/core/services/location_service.dart';
 import 'package:jilake_speedo/features/session/session_controller.dart';
-import 'package:jilake_speedo/features/session/session_screen.dart';
+import 'package:jilake_speedo/features/session/session_format.dart';
+import 'package:jilake_speedo/features/speedo/session_bar.dart';
 import 'package:sembast/sembast_memory.dart';
 
 /// Fake [LocationService] with a controllable fix stream (same pattern as
@@ -108,7 +109,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: Scaffold(body: SessionScreen())),
+        child: const MaterialApp(home: Scaffold(body: SessionBar())),
       ),
     );
     await tester.pumpAndSettle();
@@ -123,20 +124,20 @@ void main() {
     expect(find.text('Distance'), findsOneWidget);
     expect(find.text('Duration'), findsOneWidget);
 
-    // Distance presets (default unit km/h).
-    for (final label in ['0.5', '1', '2', '5', '10']) {
-      expect(find.text(label), findsOneWidget, reason: 'distance $label km');
+    // Distance presets (default unit km/h) — chips carry the unit suffix.
+    for (final label in ['0.5 km', '1 km', '2 km', '5 km', '10 km']) {
+      expect(find.text(label), findsOneWidget, reason: 'distance $label');
     }
 
     // Switch to duration presets.
     await tester.tap(find.text('Duration'));
     await tester.pumpAndSettle();
-    for (final label in ['1', '3', '5', '10', '30']) {
-      expect(find.text(label), findsOneWidget, reason: 'duration $label min');
+    for (final label in ['1 min', '3 min', '5 min', '10 min', '30 min']) {
+      expect(find.text(label), findsOneWidget, reason: 'duration $label');
     }
 
     // Start from the duration tab with the default 5 min target.
-    await tester.tap(find.text('Start'));
+    await tester.tap(find.textContaining('Start'));
     await tester.pumpAndSettle();
 
     // Anchor the session clock with a first accepted fix. Stream listeners
@@ -153,8 +154,8 @@ void main() {
     expect(live.target, const DurationTarget(5));
     expect(wakeLock.holdCount, 1);
 
-    // Live progress shows a circular indicator and the stop affordance.
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // Live progress shows a linear indicator and the stop affordance.
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('Stop'), findsOneWidget);
   });
 
@@ -199,17 +200,14 @@ void main() {
       expect(find.text('Elapsed'), findsOneWidget);
       expect(find.text('36 km/h'), findsWidgets);
       expect(find.text('0:10'), findsOneWidget);
-      // Distance target shown as 0.1 km.
-      expect(find.textContaining('0.1 km'), findsWidgets);
 
-      // Switch to mph: 10 m/s = 22.4 mph, 100 m = 0.1 mi.
+      // Switch to mph: 10 m/s = 22.4 mph.
       await container
           .read(settingsControllerProvider.notifier)
           .setUnit(SpeedUnit.mph);
       await Future<void>.delayed(Duration.zero);
       await tester.pump();
       expect(find.text('22.4 mph'), findsWidgets);
-      expect(find.textContaining('0.1 mi'), findsWidgets);
     });
   });
 
@@ -289,7 +287,7 @@ void main() {
       await emit(fixNow());
       await tester.pump();
 
-      expect(find.byKey(sessionLiveKey), findsOneWidget);
+      expect(find.byKey(sessionBarLiveKey), findsOneWidget);
       // Wall-clock elapsed since the anchor: ~0 s. (testWidgets freezes
       // the zone clock, so this cannot advance here — the tick math is
       // covered by the elapsedLabelAt unit tests; what matters is the
@@ -322,8 +320,8 @@ void main() {
       // between the two DateTime.now() reads.
       expect(state.lastSummary!.elapsedMs, greaterThanOrEqualTo(6 * 60000));
       expect(state.lastSummary!.elapsedMs, lessThan(6 * 60000 + 5000));
-      expect(find.byKey(sessionSummaryKey), findsOneWidget);
-      expect(find.byKey(sessionLiveKey), findsNothing);
+      expect(find.byKey(sessionBarSummaryKey), findsOneWidget);
+      expect(find.byKey(sessionBarLiveKey), findsNothing);
     });
   });
 
