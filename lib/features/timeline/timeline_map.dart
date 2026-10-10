@@ -5,9 +5,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/models/models.dart';
+import 'map_config.dart';
 
-/// Map for the timeline screen: CARTO dark tiles, the day's route as a
-/// speed-colored polyline, and stop markers with their dwell duration.
+/// Map for the timeline screen: dark basemap tiles (MapTiler when a key is
+/// configured, CARTO fallback), the day's route as a speed-colored polyline,
+/// and stop markers with their dwell duration.
 ///
 /// Color ramps blue → red as point speed goes from 30% to 70% of
 /// [gaugeMaxMs] (below 30%: pure blue; above 70%: pure red).
@@ -25,14 +27,11 @@ class TimelineMap extends StatefulWidget {
   /// ramp's 30%/70% thresholds.
   final double gaugeMaxMs;
 
-  /// CARTO dark basemaps: free, keyless, CORS-enabled, and confirmed working
-  /// from this app. (OSM's tile server blocks PWA traffic with an
-  /// `x-blocked: Access denied` placeholder — verified 2026-10.)
-  static const String tileUrl =
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-  static const List<String> subdomains = ['a', 'b', 'c', 'd'];
-  static const String attribution =
-      '© OpenStreetMap contributors © CARTO';
+  /// Tile provider/URL/attribution come from [MapConfig] (MapTiler when a key
+  /// is injected, CARTO fallback otherwise).
+  static String get tileUrl => MapConfig.tileUrl;
+  static List<String> get subdomains => MapConfig.subdomains;
+  static String get attribution => MapConfig.attribution;
 
   @override
   State<TimelineMap> createState() => _TimelineMapState();
@@ -206,7 +205,7 @@ class _TimelineMapState extends State<TimelineMap> {
               ),
               PolylineLayer(polylines: _buildPolylines()),
               MarkerLayer(markers: _buildStopMarkers()),
-              const RichAttributionWidget(
+              RichAttributionWidget(
                 attributions: [
                   TextSourceAttribution(TimelineMap.attribution),
                 ],
