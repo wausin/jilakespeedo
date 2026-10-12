@@ -1,5 +1,8 @@
 .worktrees/
 
+# Hit-mark sound is supplied locally, not committed (may be copyrighted).
+web/sounds/hitmark.*
+
 # Miscellaneous
 *.class
 *.log
