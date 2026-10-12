@@ -1,40 +1,59 @@
-// Jilake Speedo service worker: app-shell caching so the PWA launches and
-// works offline (GPS, sessions, and recording need no network; only map
-// tiles do).
+// Jilake Speedo service worker: ensures the PWA launches and works offline
+// (GPS, sessions, and recording need no network; only map tiles do).
 //
-// Flutter's generated service worker is deprecated and the default build
-// ships a self-unregistering (no-cache) one, which is why the app failed to
-// open in airplane mode. This replaces it: cache-first for the app shell,
-// network-first (with cache fallback) for everything else.
+// Flutter's generated service worker unregisters itself (no offline cache),
+// so this replaces it. Strategy:
+//   - On install, precache the app shell AND Flutter's assets (fonts/icons,
+//     manifests, shaders) by reading the AssetManifest, so offline the UI
+//     (including icons) renders correctly.
+//   - On fetch, cache-first with background refresh for same-origin GETs;
+//     everything successful gets cached so nothing is missed offline.
+//   - Cross-origin (map tiles) is never cached — it needs the network.
 
-const CACHE = 'jilake-speedo-v1';
+const CACHE = 'jilake-speedo-v3';
 
-// Core shell files fetched at install. Flutter's hashed asset manifest is
-// read at runtime from AssetManifest, but these cover a cold offline start.
+// Shell + bundled assets precached at install. This explicit list covers the
+// app shell and Flutter's runtime assets (icon fonts, manifests, shaders) so
+// offline the UI renders correctly — including the Material/Cupertino icons.
 const CORE = [
   './',
   './index.html',
   './main.dart.js',
   './flutter_bootstrap.js',
+  './flutter.js',
   './manifest.json',
+  './version.json',
   './favicon.png',
   './icons/Icon-192.png',
   './icons/Icon-512.png',
   './icons/Icon-maskable-192.png',
   './icons/Icon-maskable-512.png',
+  // Flutter runtime assets (fonts/icons/manifests/shaders).
+  './assets/AssetManifest.bin',
+  './assets/AssetManifest.bin.json',
+  './assets/FontManifest.json',
+  './assets/NOTICES',
+  './assets/fonts/MaterialIcons-Regular.otf',
+  './assets/packages/cupertino_icons/assets/CupertinoIcons.ttf',
+  './assets/packages/flutter_map/lib/assets/flutter_map_logo.png',
+  './assets/packages/wakelock_plus/assets/no_sleep.js',
+  './assets/shaders/ink_sparkle.frag',
+  './assets/shaders/stretch_effect.frag',
+  // CanvasKit engine (local) — required to render offline.
+  './canvaskit/canvaskit.js',
+  './canvaskit/canvaskit.wasm',
 ];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE).then((cache) =>
+    (async () => {
+      const cache = await caches.open(CACHE);
       // Best-effort: a missing optional file must not fail the install.
-      Promise.all(
-        CORE.map((url) =>
-          cache.add(url).catch(() => undefined)
-        )
-      )
-    )
+      await Promise.all(
+        CORE.map((url) => cache.add(url).catch(() => undefined))
+      );
+    })()
   );
 });
 
@@ -55,11 +74,10 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  // Never cache map tiles or cross-origin requests: they need the network,
+  // Never cache cross-origin requests (map tiles): they need the network,
   // and offline the map simply shows its dark surface.
   if (url.origin !== self.location.origin) return;
 
-  // Cache-first for the app shell so offline launch is fast and reliable.
   event.respondWith(
     (async () => {
       const cached = await caches.match(request);
