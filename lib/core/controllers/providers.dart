@@ -8,6 +8,9 @@ import '../models/models.dart';
 import '../services/connectivity_service.dart';
 import '../services/idb_storage_service.dart';
 import '../services/location_service.dart';
+import '../services/sound_service.dart';
+import '../services/sound_service_stub.dart'
+    if (dart.library.js_interop) '../services/sound_service_web.dart';
 import '../services/storage_service.dart';
 
 /// Database factory used by the app's [StorageService].
@@ -107,23 +110,46 @@ final connectivityServiceProvider = Provider<ConnectivityService>(
   ),
 );
 
-/// User settings state (display units, ...).
+/// App-wide [SoundService] for the hit-mark sound. Web plays real audio;
+/// tests/VM use a no-op stub.
+final soundServiceProvider = Provider<SoundService>(
+  (_) => createSoundService(),
+);
+
+/// Increments each time the hit-mark speed is crossed (rising edge), so the
+/// speedo screen can run its celebration animation. Mono-detail: kept as a
+/// counter so repeated triggers are observable.
+final hitMarkTriggerProvider = StateProvider<int>((_) => 0);
+
+/// User settings state (display units, hit-mark speed, ...).
 class SettingsState {
   final SpeedUnit unit;
 
-  const SettingsState({this.unit = SpeedUnit.kmh});
+  /// Speed (km/h) at which the hit-mark celebration triggers on the speedo.
+  /// Always stored in km/h; displayed in the current unit.
+  final double hitMarkKmh;
 
-  SettingsState copyWith({SpeedUnit? unit}) =>
-      SettingsState(unit: unit ?? this.unit);
+  const SettingsState({this.unit = SpeedUnit.kmh, this.hitMarkKmh = 100});
+
+  SettingsState copyWith({SpeedUnit? unit, double? hitMarkKmh}) =>
+      SettingsState(
+        unit: unit ?? this.unit,
+        hitMarkKmh: hitMarkKmh ?? this.hitMarkKmh,
+      );
 }
 
 /// Loads and persists [SettingsState] via the [StorageService] settings
 /// store (keyed string map).
 class SettingsController extends StateNotifier<SettingsState> {
   static const String _unitKey = 'unit';
+  static const String _hitMarkKey = 'hitMarkKmh';
 
   final StoreRef<String, String> _settingsStore;
   final Database _database;
+
+  /// Set once _load has finished; further sets are not clobbered by a late
+  /// load completing after a user change.
+  bool _loaded = false;
 
   SettingsController(this._settingsStore, this._database)
     : super(const SettingsState()) {
@@ -131,16 +157,32 @@ class SettingsController extends StateNotifier<SettingsState> {
   }
 
   Future<void> _load() async {
-    final stored = await _settingsStore.record(_unitKey).get(_database);
-    if (stored == SpeedUnit.mph.name) {
-      state = SettingsState(unit: SpeedUnit.mph);
-    }
+    final storedUnit = await _settingsStore.record(_unitKey).get(_database);
+    final storedHitMark =
+        await _settingsStore.record(_hitMarkKey).get(_database);
+    if (_loaded || !mounted) return; // user change or disposed; don't clobber
+    _loaded = true;
+    state = SettingsState(
+      unit: storedUnit == SpeedUnit.mph.name ? SpeedUnit.mph : SpeedUnit.kmh,
+      hitMarkKmh: double.tryParse(storedHitMark ?? '') ?? 100,
+    );
   }
 
   /// Switches the display unit and persists the choice.
   Future<void> setUnit(SpeedUnit unit) async {
-    state = SettingsState(unit: unit);
+    _loaded = true;
+    state = state.copyWith(unit: unit);
     await _settingsStore.record(_unitKey).put(_database, unit.name);
+  }
+
+  /// Sets the hit-mark speed (km/h) and persists it.
+  Future<void> setHitMark(double kmh) async {
+    _loaded = true;
+    final clamped = kmh.clamp(10.0, 400.0);
+    state = state.copyWith(hitMarkKmh: clamped);
+    await _settingsStore
+        .record(_hitMarkKey)
+        .put(_database, clamped.toStringAsFixed(0));
   }
 }
 
