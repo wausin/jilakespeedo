@@ -62,7 +62,6 @@ void main() {
       speedFraction: 0.42,
       peakFraction: 0.7,
       weakSignal: true,
-      accent: const Color(0xFFFF3B30),
     );
     expect(painter.shouldRepaint(painter), isFalse);
     expect(
@@ -71,7 +70,6 @@ void main() {
           speedFraction: 0.5,
           peakFraction: 0.7,
           weakSignal: true,
-          accent: const Color(0xFFFF3B30),
         ),
       ),
       isTrue,

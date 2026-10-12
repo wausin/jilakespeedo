@@ -67,6 +67,18 @@ it the map falls back to CARTO, which some networks serve an
 "API key required" placeholder for. MapTiler keys are origin-restricted, so
 tiles 403 on `localhost` but work from the deployed origin.
 
+### Hit-mark sound
+
+Place the celebration sound at `web/sounds/hitmark.mp3`. It plays when speed
+crosses the Settings "Hit-mark speed" (default 100 km/h). Missing file = silent,
+no error. Users can replace it via a picker (planned).
+
+### Theme
+
+Neon emerald (`#00FFA3`) primary + ocean blue (`#00E5FF`) secondary on deep
+black, defined once in `lib/core/theme/neon_theme.dart` and used via the
+`ColorScheme` throughout.
+
 ## Notes
 
 - Design spec: `docs/superpowers/specs/2026-10-08-jilake-speedo-design.md`; implementation plan: `docs/superpowers/plans/2026-10-08-jilake-speedo.md`.

@@ -8,13 +8,14 @@ import 'core/controllers/update_controller.dart';
 import 'core/services/location_service.dart';
 import 'core/services/reloader_stub.dart'
     if (dart.library.js_interop) 'core/services/reloader_web.dart';
+import 'core/theme/neon_theme.dart';
 import 'features/analytics/analytics_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/speedo/speedo_screen.dart';
 import 'features/timeline/timeline_screen.dart';
 import 'features/update/update_badge.dart';
 
-/// Root widget: dark racing-red theme hosting the navigation shell.
+/// Root widget: neon emerald/ocean dark theme hosting the navigation shell.
 class JilakeSpeedoApp extends StatelessWidget {
   const JilakeSpeedoApp({super.key});
 
@@ -22,13 +23,7 @@ class JilakeSpeedoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Jilake Speedo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFF3B30),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
+      theme: NeonTheme.theme(),
       home: const AppShell(),
     );
   }

@@ -58,6 +58,7 @@ class SettingsScreen extends ConsumerWidget {
                 .setUnit(mph ? SpeedUnit.mph : SpeedUnit.kmh);
           },
         ),
+        const _HitMarkSection(),
         const SizedBox(height: 16),
         _VehiclesSection(key: vehiclesSectionKey),
         const SizedBox(height: 16),
@@ -81,6 +82,55 @@ class _SectionHeader extends StatelessWidget {
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
             color: Theme.of(context).colorScheme.primary,
           ),
+    );
+  }
+}
+
+/// Hit-mark speed: the speed at which the speedo celebrates (animation +
+/// sound). Stored in km/h, displayed in the current unit.
+class _HitMarkSection extends ConsumerWidget {
+  const _HitMarkSection();
+
+  static const Key sliderKey = Key('hit-mark-slider');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unit = ref.watch(settingsControllerProvider.select((s) => s.unit));
+    final hitMarkKmh =
+        ref.watch(settingsControllerProvider.select((s) => s.hitMarkKmh));
+    final displayed = convertSpeed(ms: hitMarkKmh / 3.6, unit: unit);
+
+    final min = unit == SpeedUnit.kmh ? 30.0 : 20.0;
+    final max = unit == SpeedUnit.kmh ? 300.0 : 190.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 8),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            Icons.speed,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          title: const Text('Hit-mark speed'),
+          subtitle: Text(
+            'Celebrate at ${displayed.round()} ${unitLabel(unit)}',
+          ),
+        ),
+        Slider(
+          key: sliderKey,
+          value: displayed.clamp(min, max),
+          min: min,
+          max: max,
+          divisions: ((max - min) / 5).round(),
+          label: '${displayed.round()} ${unitLabel(unit)}',
+          onChanged: (v) {
+            final kmh = unit == SpeedUnit.kmh ? v : v / 0.6213711922;
+            ref.read(settingsControllerProvider.notifier).setHitMark(kmh);
+          },
+        ),
+      ],
     );
   }
 }

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/neon_theme.dart';
+
 /// Digital speed readout with a thin colored arc ring: the ring fills as
 /// speed goes from 0 to the vehicle's gauge maximum, and a red tick marks
 /// the peak speed reached. A pulsing amber dot flags a weak GPS signal.
@@ -52,7 +54,6 @@ class DigitalMeter extends StatelessWidget {
                 speedFraction: speedFraction.clamp(0.0, 1.0),
                 peakFraction: peakFraction.clamp(0.0, 1.0),
                 weakSignal: weakSignal,
-                accent: accent,
               ),
               child: Center(
                 child: Column(
@@ -68,8 +69,12 @@ class DigitalMeter extends StatelessWidget {
                         letterSpacing: -1,
                         shadows: [
                           Shadow(
-                            color: accent.withValues(alpha: 0.7),
-                            blurRadius: 24,
+                            color: NeonTheme.emerald.withValues(alpha: 0.8),
+                            blurRadius: 28,
+                          ),
+                          Shadow(
+                            color: NeonTheme.ocean.withValues(alpha: 0.4),
+                            blurRadius: 40,
                           ),
                         ],
                       ),
@@ -77,7 +82,7 @@ class DigitalMeter extends StatelessWidget {
                     Text(
                       unit,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
+                        color: NeonTheme.ocean.withValues(alpha: 0.85),
                         fontSize: size * 0.05,
                         letterSpacing: 3,
                       ),
@@ -158,13 +163,11 @@ class DigitalMeterPainter extends CustomPainter {
     required this.speedFraction,
     required this.peakFraction,
     required this.weakSignal,
-    required this.accent,
   });
 
   final double speedFraction;
   final double peakFraction;
   final bool weakSignal;
-  final Color accent;
 
   // 270° sweep starting at 135° (bottom-left), like a racing dial.
   static const double _startAngle = 135 * math.pi / 180;
@@ -187,10 +190,23 @@ class DigitalMeterPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke
         ..strokeCap = StrokeCap.round
-        ..color = Colors.white.withValues(alpha: 0.08),
+        ..color = Colors.white.withValues(alpha: 0.06),
     );
 
-    // Filled speed portion, colored from the accent.
+    // Filled speed portion: emerald -> ocean gradient with a neon glow.
+    final sweepGradient = SweepGradient(
+      startAngle: _startAngle,
+      endAngle: _startAngle + _sweep,
+      colors: const [NeonTheme.emerald, NeonTheme.ocean],
+      transform: GradientRotation(_startAngle),
+    );
+    final arcPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..shader = sweepGradient.createShader(rect);
+
+    // Glow pass (blurred, wider, low alpha) then the crisp arc.
     canvas.drawArc(
       rect,
       _startAngle,
@@ -198,17 +214,15 @@ class DigitalMeterPainter extends CustomPainter {
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
+        ..strokeWidth = stroke * 2.2
         ..strokeCap = StrokeCap.round
-        ..shader = SweepGradient(
-          startAngle: _startAngle,
-          endAngle: _startAngle + _sweep,
-          colors: [accent.withValues(alpha: 0.5), accent],
-          transform: GradientRotation(_startAngle),
-        ).createShader(rect),
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8)
+        ..shader = sweepGradient.createShader(rect)
+        ..color = NeonTheme.emerald.withValues(alpha: 0.35),
     );
+    canvas.drawArc(rect, _startAngle, _sweep * speedFraction, false, arcPaint);
 
-    // Peak tick (thin red line across the ring at the peak angle).
+    // Peak tick (hot danger line across the ring at the peak angle).
     final peakAngle = _startAngle + _sweep * peakFraction;
     final inner = radius - stroke;
     final outer = radius + stroke * 0.5;
@@ -217,7 +231,7 @@ class DigitalMeterPainter extends CustomPainter {
       center + dir * inner,
       center + dir * outer,
       Paint()
-        ..color = const Color(0xFFFF3B30)
+        ..color = NeonTheme.danger
         ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round,
     );
@@ -227,6 +241,5 @@ class DigitalMeterPainter extends CustomPainter {
   bool shouldRepaint(DigitalMeterPainter old) =>
       old.speedFraction != speedFraction ||
       old.peakFraction != peakFraction ||
-      old.weakSignal != weakSignal ||
-      old.accent != accent;
+      old.weakSignal != weakSignal;
 }
