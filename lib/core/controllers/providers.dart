@@ -54,6 +54,13 @@ final currentPositionProvider = StreamProvider<PositionFix?>((ref) {
       .map<PositionFix?>((fix) => fix);
 });
 
+/// Sessions for a vehicle, newest first. Keyed by vehicle id; invalidate
+/// (via [refreshSessions]) after a session finishes so Analytics reloads.
+final sessionsForVehicleProvider =
+    FutureProvider.family<List<Session>, String>((ref, vehicleId) async {
+  return ref.watch(storageServiceProvider).sessionsForVehicle(vehicleId);
+});
+
 /// Ref-counted wakelock so session and timeline can hold concurrently.
 class WakeLockService {
   int _count = 0;

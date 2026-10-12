@@ -20,6 +20,7 @@ class TimelineMap extends StatefulWidget {
     required this.segments,
     required this.gaugeMaxMs,
     this.currentPosition,
+    this.fitKey,
   });
 
   /// Segments to render (rides as polylines, stops as markers).
@@ -32,6 +33,11 @@ class TimelineMap extends StatefulWidget {
   /// Latest GPS fix, used to center the map on the user when there is no
   /// recorded route yet. Null until the first fix arrives.
   final PositionFix? currentPosition;
+
+  /// Identity of what is being shown (e.g. the selected day, or `live`).
+  /// The map refits to the route bounds only when this changes — never on
+  /// every incoming fix, so zooming during a recording is not fought.
+  final Object? fitKey;
 
   /// Tile provider/URL/attribution come from [MapConfig] (MapTiler when a key
   /// is injected, CARTO fallback otherwise).
@@ -79,7 +85,10 @@ class TimelineMapState extends State<TimelineMap> {
   @override
   void didUpdateWidget(TimelineMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.segments != widget.segments) {
+    // Refit only when what we're showing changes (a different day, or the
+    // switch to/from a live recording) — NOT on every incoming fix, which
+    // would fight the user's zoom during a recording.
+    if (oldWidget.fitKey != widget.fitKey) {
       _fitPending = true;
     }
   }
@@ -198,6 +207,18 @@ class TimelineMapState extends State<TimelineMap> {
     if (fix == null) return;
     _mapController.move(LatLng(fix.lat, fix.lng), 15);
   }
+
+  /// Zooms in one step around the current center.
+  void zoomIn() => _mapController.move(
+        _mapController.camera.center,
+        _mapController.camera.zoom + 1,
+      );
+
+  /// Zooms out one step around the current center.
+  void zoomOut() => _mapController.move(
+        _mapController.camera.center,
+        _mapController.camera.zoom - 1,
+      );
 
   /// Centers on the user's location the first time a fix arrives, if there is
   /// no recorded route to fit to.
