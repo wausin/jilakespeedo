@@ -44,5 +44,22 @@
   -->
   <script src="js/geolocation_bridge.js"></script>
   <script src="flutter_bootstrap.js" async></script>
+  <!--
+    Register the offline service worker ourselves (Flutter's built-in
+    service-worker loader is deprecated and unreliable). Registered here so
+    the app shell is cached for offline / airplane-mode use. Harmless if the
+    file is missing.
+  -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker
+          .register('flutter_service_worker.js')
+          .catch(function (e) {
+            console.warn('Service worker registration failed:', e);
+          });
+      });
+    }
+  </script>
 </body>
 </html>

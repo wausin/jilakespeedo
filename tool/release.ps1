@@ -33,6 +33,19 @@ try {
     "--dart-define=APP_VERSION=$version" `
     "--dart-define=MAPTILER_KEY=$mapKey"
   if ($LASTEXITCODE -ne 0) { throw "flutter build web failed (exit $LASTEXITCODE)" }
+
+  # Flutter OVERWRITES flutter_service_worker.js with a self-unregistering
+  # (no offline) template. Restore our offline-capable service worker so the
+  # PWA works in airplane mode.
+  $ErrorActionPreference = 'Stop'
+  $swSrc = Join-Path $PSScriptRoot 'service_worker.js'
+  $swDst = Join-Path $repoRoot 'build\web\flutter_service_worker.js'
+  if (Test-Path -LiteralPath $swSrc) {
+    Copy-Item -LiteralPath $swSrc -Destination $swDst -Force
+    Write-Output "Installed offline service worker into build\web."
+  } else {
+    Write-Warning "tool\service_worker.js not found - build\web keeps the no-offline worker."
+  }
 } finally {
   $ErrorActionPreference = 'Stop'
   Pop-Location
