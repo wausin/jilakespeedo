@@ -1,6 +1,10 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jilake_speedo/core/controllers/providers.dart';
 import 'package:jilake_speedo/core/models/models.dart';
+import 'package:jilake_speedo/core/services/idb_storage_service.dart';
 import 'package:jilake_speedo/features/analytics/analytics_screen.dart';
+import 'package:sembast/sembast_memory.dart';
 
 Session _session({
   required String id,
@@ -51,6 +55,34 @@ void main() {
       expect(agg.sessionCount, 0);
       expect(agg.totalDistanceM, 0);
       expect(agg.bestTopSpeedMs, 0);
+    });
+  });
+
+  group('sessionsForVehicleProvider', () {
+    test('reloads after invalidation when a new session is saved', () async {
+      final storage =
+          IdbStorageService(databaseFactory: newDatabaseFactoryMemory());
+      await storage.init();
+      final container = ProviderContainer(
+        overrides: [storageServiceProvider.overrideWithValue(storage)],
+      );
+      addTearDown(container.dispose);
+
+      // Initially empty.
+      expect(
+        await container.read(sessionsForVehicleProvider('v1').future),
+        isEmpty,
+      );
+
+      // A session is persisted directly, then the provider is invalidated
+      // (as the session controller does when a session ends).
+      await storage.saveSession(_session(id: 's1', distanceM: 1000, topMs: 20));
+      container.invalidate(sessionsForVehicleProvider('v1'));
+
+      final reloaded =
+          await container.read(sessionsForVehicleProvider('v1').future);
+      expect(reloaded, hasLength(1));
+      expect(reloaded.single.id, 's1');
     });
   });
 }

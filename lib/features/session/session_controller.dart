@@ -244,6 +244,8 @@ class SessionController extends Notifier<SessionControllerState> {
       try {
         await storage.appendTrackPoints(session.id, _trackPoints);
         await storage.saveSession(record);
+        // A new session was persisted: refresh Analytics for that vehicle.
+        ref.invalidate(sessionsForVehicleProvider(session.vehicleId));
       } catch (_) {
         // Swallow: the session is over; the summary is still surfaced and
         // the wake lock is released below.

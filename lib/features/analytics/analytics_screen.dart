@@ -53,7 +53,6 @@ class AnalyticsScreen extends ConsumerWidget {
     final activeVehicleId = ref.watch(
       vehiclesProvider.select((s) => s.activeVehicleId),
     );
-    final storage = ref.watch(storageServiceProvider);
 
     return SafeArea(
       key: markerKey,
@@ -62,33 +61,43 @@ class AnalyticsScreen extends ConsumerWidget {
               child: Text('No vehicle selected',
                   style: theme.textTheme.bodyMedium),
             )
-          : FutureBuilder<List<Session>>(
-              future: storage.sessionsForVehicle(activeVehicleId, limit: 50),
-              builder: (context, snapshot) {
-                final sessions = snapshot.data ?? const <Session>[];
-                if (sessions.isEmpty) {
-                  return Center(
-                    child: Text('No sessions yet',
+          : Consumer(
+              builder: (context, ref, _) {
+                final sessionsAsync =
+                    ref.watch(sessionsForVehicleProvider(activeVehicleId));
+                return sessionsAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(
+                    child: Text('Could not load sessions: $e',
                         style: theme.textTheme.bodyMedium),
-                  );
-                }
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _AggregateHeader(sessions: sessions, unit: unit),
-                    const SizedBox(height: 16),
-                    _TopSpeedChart(sessions: sessions, unit: unit),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Sessions',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    for (final session in sessions)
-                      _SessionCard(session: session, unit: unit),
-                  ],
+                  ),
+                  data: (sessions) {
+                    if (sessions.isEmpty) {
+                      return Center(
+                        child: Text('No sessions yet',
+                            style: theme.textTheme.bodyMedium),
+                      );
+                    }
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        _AggregateHeader(sessions: sessions, unit: unit),
+                        const SizedBox(height: 16),
+                        _TopSpeedChart(sessions: sessions, unit: unit),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Sessions',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        for (final session in sessions)
+                          _SessionCard(session: session, unit: unit),
+                      ],
+                    );
+                  },
                 );
               },
             ),

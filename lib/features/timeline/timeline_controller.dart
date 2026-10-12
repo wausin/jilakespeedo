@@ -166,6 +166,14 @@ class TimelineController extends Notifier<TimelineState> {
     );
   }
 
+  /// Clears the selected day (shows no recorded route).
+  void clearDay() {
+    state = state.copyWith(
+      activeDay: () => null,
+      dayEntries: const [],
+    );
+  }
+
   /// Clears a surfaced error after the screen has shown it.
   void clearError() {
     if (state.error == null) return;
@@ -234,17 +242,14 @@ class TimelineController extends Notifier<TimelineState> {
     return DateTime(dt.year, dt.month, dt.day);
   }
 
-  /// Loads the most recent recorded day as the initial selection, or selects
-  /// today when nothing has been recorded yet (so a date is always active).
+  /// Loads an initial day selection: the most recent recorded day, or none
+  /// when nothing has been recorded (the map then just shows the user's
+  /// location; the date selector starts empty). The user picks a date
+  /// explicitly from the floating selector.
   Future<void> _loadLatestDay() async {
     final storage = ref.read(storageServiceProvider);
     final days = await storage.timelineDays();
-    if (_disposed) return;
-    if (days.isEmpty) {
-      final now = DateTime.now();
-      await selectDay(DateTime(now.year, now.month, now.day));
-      return;
-    }
+    if (_disposed || days.isEmpty) return;
     await selectDay(days.first);
   }
 }

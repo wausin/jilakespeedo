@@ -32,8 +32,7 @@ class FakeConnectivityService implements ConnectivityService {
   }
 }
 
-/// Minimal fake [LocationService] (timeline screen watches the controller,
-/// which needs the provider, but no fixes are emitted here).
+/// Minimal fake [LocationService].
 class FakeLocationService implements LocationService {
   @override
   bool get isSupported => true;
@@ -53,6 +52,8 @@ class FakeLocationService implements LocationService {
   @override
   Future<void> stop() async {}
 }
+
+const String _offlineText = 'Offline — tiles may not load';
 
 void main() {
   late FakeConnectivityService connectivity;
@@ -83,14 +84,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // Online: no banner.
-    expect(find.text('Offline — map unavailable'), findsNothing);
+    expect(find.text(_offlineText), findsNothing);
 
     connectivity.goOffline();
     await tester.pumpAndSettle();
-    expect(find.text('Offline — map unavailable'), findsOneWidget);
+    expect(find.text(_offlineText), findsOneWidget);
 
     connectivity.goOnline();
     await tester.pumpAndSettle();
-    expect(find.text('Offline — map unavailable'), findsNothing);
+    expect(find.text(_offlineText), findsNothing);
   });
 }
